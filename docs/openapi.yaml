@@ -1,0 +1,44 @@
+openapi: 3.1.0
+info:
+  title: Personal Growth Journal API
+  version: 0.2.0
+security:
+  - supabaseBearer: []
+paths:
+  /api/entries:
+    get:
+      summary: List active entries in reverse chronological order
+      responses:
+        "200":
+          description: Entry list
+    post:
+      summary: Create an entry idempotently
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEntryRequest"
+      responses:
+        "201":
+          description: Entry created
+        "409":
+          description: Idempotency or entry conflict
+components:
+  securitySchemes:
+    supabaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CreateEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [id, operationId, occurredAt, source, mode, content]
+      properties:
+        id: { type: string, format: uuid }
+        operationId: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        source: { type: string, enum: [iphone, mac_web, ipad_web, import] }
+        mode: { type: string, enum: [record_only, record_and_analyze] }
+        content: { type: string, minLength: 1, maxLength: 20000 }

@@ -1,0 +1,21 @@
+{
+  "name": "personal-growth-journal",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @journal/web",
+    "dev:web": "npm run dev -w @journal/web",
+    "build": "npm run build -w @journal/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": { "typescript": "latest" },
+  "engines": {
+    "node": ">=20.9"
+  }
+}

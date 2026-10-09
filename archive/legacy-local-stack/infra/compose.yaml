@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: journal
+      POSTGRES_PASSWORD: journal
+      POSTGRES_DB: personal_growth_journal
+    ports:
+      - "5432:5432"
+    volumes:
+      - journal-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U journal -d personal_growth_journal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  journal-postgres:
