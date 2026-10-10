@@ -7,6 +7,8 @@ import type {
   EntryListResponse,
   JournalImportPreviewResponse,
   JournalImportResult,
+  MonthArchiveResponse,
+  OnThisDayResponse,
   ReflectionConversationDto,
   SendReflectionMessageRequest,
 } from "@journal/contracts";
@@ -51,6 +53,14 @@ export function fetchEntries(options: { limit?: number; offset?: number } = {}):
   if (options.offset) params.set("offset", String(options.offset));
   const query = params.size ? `?${params.toString()}` : "";
   return request<EntryListResponse>(`/api/entries${query}`);
+}
+
+export function fetchOnThisDay(localDate: string): Promise<OnThisDayResponse> {
+  return request<OnThisDayResponse>(`/api/reviews?kind=on_this_day&date=${encodeURIComponent(localDate)}`);
+}
+
+export function fetchMonthArchive(month: string): Promise<MonthArchiveResponse> {
+  return request<MonthArchiveResponse>(`/api/reviews?kind=month&month=${encodeURIComponent(month)}`);
 }
 
 export function createEntry(body: CreateEntryRequest): Promise<CreateEntryResponse> {

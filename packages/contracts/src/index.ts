@@ -41,6 +41,23 @@ export interface EntryListResponse {
   nextOffset: number | null;
 }
 
+export interface OnThisDayResponse {
+  monthDay: string;
+  entries: EntryDto[];
+}
+
+export interface MonthArchiveDay {
+  localDate: string;
+  count: number;
+}
+
+export interface MonthArchiveResponse {
+  month: string;
+  entries: EntryDto[];
+  days: MonthArchiveDay[];
+  truncated: boolean;
+}
+
 export interface DeleteEntryResponse {
   id: string;
   status: "deleted";
