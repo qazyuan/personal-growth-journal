@@ -7,7 +7,7 @@ import type {
   EntryListResponse,
   JournalImportPreviewResponse,
   JournalImportResult,
-  MonthArchiveResponse,
+  ArchiveResponse,
   OnThisDayResponse,
   ReflectionConversationDto,
   SendReflectionMessageRequest,
@@ -59,8 +59,9 @@ export function fetchOnThisDay(localDate: string): Promise<OnThisDayResponse> {
   return request<OnThisDayResponse>(`/api/reviews?kind=on_this_day&date=${encodeURIComponent(localDate)}`);
 }
 
-export function fetchMonthArchive(month: string): Promise<MonthArchiveResponse> {
-  return request<MonthArchiveResponse>(`/api/reviews?kind=month&month=${encodeURIComponent(month)}`);
+export function fetchArchive(startDate: string, endDate: string): Promise<ArchiveResponse> {
+  const params = new URLSearchParams({ kind: "archive", start: startDate, end: endDate });
+  return request<ArchiveResponse>(`/api/reviews?${params.toString()}`);
 }
 
 export function createEntry(body: CreateEntryRequest): Promise<CreateEntryResponse> {

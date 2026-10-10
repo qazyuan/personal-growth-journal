@@ -46,15 +46,10 @@ export interface OnThisDayResponse {
   entries: EntryDto[];
 }
 
-export interface MonthArchiveDay {
-  localDate: string;
-  count: number;
-}
-
-export interface MonthArchiveResponse {
-  month: string;
+export interface ArchiveResponse {
+  startDate: string;
+  endDate: string;
   entries: EntryDto[];
-  days: MonthArchiveDay[];
   truncated: boolean;
 }
 

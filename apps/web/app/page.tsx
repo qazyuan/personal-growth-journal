@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  ArchiveResponse,
   AnalysisStateDto,
   CreateEntryRequest,
   EntryDto,
@@ -8,7 +9,6 @@ import type {
   EntrySource,
   JournalImportPreviewResponse,
   JournalImportResult,
-  MonthArchiveResponse,
   OnThisDayResponse,
   ReflectionConversationDto,
   ReflectionMessageDto,
@@ -20,7 +20,7 @@ import {
   deleteEntry,
   fetchAnalyses,
   fetchEntries,
-  fetchMonthArchive,
+  fetchArchive,
   fetchOnThisDay,
   fetchReflectionConversation,
   importJournal,
@@ -62,16 +62,16 @@ function monthTitle(month: string): string {
   return `${year}年${Number(numericMonth)}月`;
 }
 
-function shiftMonth(month: string, amount: number): string {
-  const year = Number(month.slice(0, 4));
-  const numericMonth = Number(month.slice(5, 7));
-  const date = new Date(year, numericMonth - 1 + amount, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function localDateTitle(localDate: string): string {
   const [year, month, day] = localDate.split("-");
   return `${year}年${Number(month)}月${Number(day)}日`;
+}
+
+function monthDateRange(month: string): { startDate: string; endDate: string } {
+  const year = Number(month.slice(0, 4));
+  const numericMonth = Number(month.slice(5, 7));
+  const finalDay = new Date(year, numericMonth, 0).getDate();
+  return { startDate: `${month}-01`, endDate: `${month}-${String(finalDay).padStart(2, "0")}` };
 }
 
 function AnalysisCard({
@@ -508,46 +508,6 @@ function OnThisDay({ state, loading, error }: {
   );
 }
 
-function MonthCalendar({ month, days, selectedDate, onSelect }: {
-  month: string;
-  days: MonthArchiveResponse["days"];
-  selectedDate: string | null;
-  onSelect: (date: string | null) => void;
-}) {
-  const year = Number(month.slice(0, 4));
-  const numericMonth = Number(month.slice(5, 7));
-  const dayCount = new Date(year, numericMonth, 0).getDate();
-  const leadingBlanks = (new Date(year, numericMonth - 1, 1).getDay() + 6) % 7;
-  const counts = new Map(days.map((day) => [day.localDate, day.count]));
-  const cells = Array.from({ length: leadingBlanks + dayCount }, (_, index) => index < leadingBlanks ? null : index - leadingBlanks + 1);
-  return (
-    <div className="history-calendar" aria-label={`${monthTitle(month)}日历`}>
-      <div className="calendar-weekdays" aria-hidden="true">
-        {['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}
-      </div>
-      <div className="calendar-grid">
-        {cells.map((day, index) => {
-          if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
-          const localDate = `${month}-${String(day).padStart(2, "0")}`;
-          const count = counts.get(localDate) ?? 0;
-          return (
-            <button
-              className={selectedDate === localDate ? "selected" : count ? "has-entry" : ""}
-              type="button"
-              key={localDate}
-              onClick={() => onSelect(selectedDate === localDate ? null : localDate)}
-              aria-pressed={selectedDate === localDate}
-              aria-label={`${day}日${count ? `，${count}条记录` : "，没有记录"}`}
-            >
-              <span>{day}</span>{count ? <i>{count}</i> : null}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function HistoryArchive({
   analyses,
   openConversationEntryId,
@@ -567,33 +527,36 @@ function HistoryArchive({
   onDelete: (entry: EntryDto) => void;
   onRetryAnalysis: (entryId: string) => void;
 }) {
+  const [filterKind, setFilterKind] = useState<"month" | "range">("month");
   const [month, setMonth] = useState(currentMonth);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [archive, setArchive] = useState<MonthArchiveResponse | null>(null);
+  const [rangeStart, setRangeStart] = useState(() => `${currentMonth()}-01`);
+  const [rangeEnd, setRangeEnd] = useState(currentLocalDate);
+  const [archive, setArchive] = useState<ArchiveResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const dates = filterKind === "month"
+    ? monthDateRange(month)
+    : { startDate: rangeStart, endDate: rangeEnd };
+  const invalidRange = dates.startDate > dates.endDate;
+
   useEffect(() => {
+    if (invalidRange) return;
     let active = true;
-    void fetchMonthArchive(month)
+    void fetchArchive(dates.startDate, dates.endDate)
       .then((result) => { if (active) setArchive(result); })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "无法读取这个月的记录"); })
+      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "无法读取这段时间的记录"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [month, revision]);
+  }, [dates.endDate, dates.startDate, invalidRange, revision]);
 
-  const visibleEntries = selectedDate
-    ? (archive?.entries ?? []).filter((entry) => entry.localDate === selectedDate)
-    : archive?.entries ?? [];
-
-  function chooseMonth(nextMonth: string) {
-    if (!nextMonth || nextMonth === month) return;
-    setLoading(true);
-    setError("");
-    setArchive(null);
-    setSelectedDate(null);
-    setMonth(nextMonth);
-  }
+  const visibleEntries = archive?.entries ?? [];
+  const visibleError = invalidRange ? "开始日期不能晚于结束日期" : error;
+  const resultTitle = filterKind === "month"
+    ? monthTitle(month)
+    : rangeStart === rangeEnd
+      ? localDateTitle(rangeStart)
+      : `${localDateTitle(rangeStart)} 至 ${localDateTitle(rangeEnd)}`;
 
   return (
     <section className="history-view" aria-labelledby="history-title">
@@ -603,27 +566,57 @@ function HistoryArchive({
           <h2 id="history-title">完整历史</h2>
           <p>共 {total} 条记录，按月份和日期回到任何一段已经写下的生活。</p>
         </div>
-        <label className="month-picker">选择月份<input type="month" value={month} onChange={(event) => chooseMonth(event.target.value)} /></label>
       </div>
-      <div className="history-browser">
-        <aside>
-          <div className="month-switcher">
-            <button type="button" onClick={() => chooseMonth(shiftMonth(month, -1))} aria-label="上一个月">上一月</button>
-            <strong>{monthTitle(month)}</strong>
-            <button type="button" onClick={() => chooseMonth(shiftMonth(month, 1))} aria-label="下一个月">下一月</button>
+      <div className="history-filter" aria-label="筛选日记时间">
+        <label>
+          <span>查看方式</span>
+          <select value={filterKind} onChange={(event) => {
+            setLoading(true);
+            setError("");
+            setArchive(null);
+            setFilterKind(event.target.value as "month" | "range");
+          }}>
+            <option value="month">按月查看</option>
+            <option value="range">日期范围</option>
+          </select>
+        </label>
+        {filterKind === "month" ? (
+          <label>
+            <span>选择月份</span>
+            <input type="month" value={month} onChange={(event) => {
+              setLoading(true);
+              setError("");
+              setArchive(null);
+              setMonth(event.target.value);
+            }} />
+          </label>
+        ) : (
+          <div className="date-range-fields">
+            <label><span>开始日期</span><input type="date" value={rangeStart} onChange={(event) => {
+              setLoading(true);
+              setError("");
+              setArchive(null);
+              setRangeStart(event.target.value);
+            }} /></label>
+            <i aria-hidden="true">至</i>
+            <label><span>结束日期</span><input type="date" value={rangeEnd} onChange={(event) => {
+              setLoading(true);
+              setError("");
+              setArchive(null);
+              setRangeEnd(event.target.value);
+            }} /></label>
           </div>
-          <MonthCalendar month={month} days={archive?.days ?? []} selectedDate={selectedDate} onSelect={setSelectedDate} />
-          {selectedDate ? <button className="show-month" type="button" onClick={() => setSelectedDate(null)}>查看整月</button> : null}
-        </aside>
-        <div className="history-results">
+        )}
+      </div>
+      <div className="history-results">
           <div className="history-results-heading">
-            <h3>{selectedDate ? localDateTitle(selectedDate) : monthTitle(month)}</h3>
+            <h3>{resultTitle}</h3>
             <span>{visibleEntries.length} 条</span>
           </div>
-          {loading ? <p className="history-state">正在读取记录……</p> : null}
-          {!loading && error ? <p className="history-state error">{error}</p> : null}
-          {!loading && !error && !visibleEntries.length ? <p className="history-state">这个时间还没有记录。</p> : null}
-          {!loading && !error ? visibleEntries.map((entry) => (
+          {loading && !invalidRange ? <p className="history-state">正在读取记录……</p> : null}
+          {visibleError ? <p className="history-state error">{visibleError}</p> : null}
+          {!loading && !visibleError && !visibleEntries.length ? <p className="history-state">这个时间还没有记录。</p> : null}
+          {!loading && !visibleError ? visibleEntries.map((entry) => (
             <article className="history-entry" key={entry.id}>
               <time dateTime={entry.occurredAt}>{localDateTitle(entry.localDate)} · {timeLabel(entry.occurredAt)}</time>
               <div className="history-entry-body">
@@ -641,9 +634,8 @@ function HistoryArchive({
               </div>
             </article>
           )) : null}
-          {archive?.truncated ? <p className="history-limit">这个月的记录超过 500 条，目前先显示前 500 条。</p> : null}
+          {archive?.truncated ? <p className="history-limit">这段时间的记录超过 500 条，目前先显示前 500 条。</p> : null}
         </div>
-      </div>
     </section>
   );
 }

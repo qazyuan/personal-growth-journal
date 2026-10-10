@@ -1,17 +1,15 @@
 import type {
+  ArchiveResponse,
   EntryDto,
   EntryMode,
   EntrySource,
-  MonthArchiveDay,
-  MonthArchiveResponse,
   OnThisDayResponse,
 } from "@journal/contracts";
 import { requireUser, type AuthContext } from "../../../lib/supabase-server";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 const ON_THIS_DAY_SCAN_LIMIT = 5000;
-const MONTH_ENTRY_LIMIT = 500;
+const ARCHIVE_ENTRY_LIMIT = 500;
 
 type EntryRow = {
   id: string;
@@ -60,13 +58,6 @@ async function hydrateEntries(auth: AuthContext, entries: EntryRow[]): Promise<E
   return entries.map((entry) => toDto(entry, latest.get(entry.id)?.content ?? ""));
 }
 
-function nextMonth(month: string): string {
-  const year = Number(month.slice(0, 4));
-  const numericMonth = Number(month.slice(5, 7));
-  const next = new Date(Date.UTC(year, numericMonth, 1));
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-
 async function onThisDay(auth: AuthContext, localDate: string): Promise<Response> {
   const monthDay = localDate.slice(5);
   const currentYear = Number(localDate.slice(0, 4));
@@ -89,33 +80,28 @@ async function onThisDay(auth: AuthContext, localDate: string): Promise<Response
   });
 }
 
-async function monthArchive(auth: AuthContext, month: string): Promise<Response> {
-  const start = `${month}-01`;
-  const end = nextMonth(month);
+async function archive(auth: AuthContext, startDate: string, endDate: string): Promise<Response> {
   const { data, error, count } = await auth.client
     .from("entries")
     .select(ENTRY_COLUMNS, { count: "exact" })
     .eq("user_id", auth.userId)
     .eq("status", "active")
-    .gte("local_date", start)
-    .lt("local_date", end)
+    .gte("local_date", startDate)
+    .lte("local_date", endDate)
     .order("occurred_at", { ascending: false })
     .order("id", { ascending: false })
-    .limit(MONTH_ENTRY_LIMIT);
-  if (error) return Response.json({ message: "读取月份日记失败" }, { status: 500 });
+    .limit(ARCHIVE_ENTRY_LIMIT);
+  if (error) return Response.json({ message: "读取历史日记失败" }, { status: 500 });
 
   const rows = (data ?? []) as EntryRow[];
   const hydrated = await hydrateEntries(auth, rows);
   if (hydrated instanceof Response) return hydrated;
-  const counts = new Map<string, number>();
-  for (const entry of rows) counts.set(entry.local_date, (counts.get(entry.local_date) ?? 0) + 1);
-  const days: MonthArchiveDay[] = [...counts].map(([localDate, dayCount]) => ({ localDate, count: dayCount }));
   return Response.json({
-    month,
+    startDate,
+    endDate,
     entries: hydrated,
-    days,
     truncated: (count ?? 0) > rows.length,
-  } satisfies MonthArchiveResponse, { headers: { "Cache-Control": "no-store" } });
+  } satisfies ArchiveResponse, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function GET(request: Request) {
@@ -128,10 +114,14 @@ export async function GET(request: Request) {
     if (!DATE_PATTERN.test(localDate)) return Response.json({ message: "日期格式无效" }, { status: 400 });
     return onThisDay(auth, localDate);
   }
-  if (kind === "month") {
-    const month = url.searchParams.get("month") ?? "";
-    if (!MONTH_PATTERN.test(month)) return Response.json({ message: "月份格式无效" }, { status: 400 });
-    return monthArchive(auth, month);
+  if (kind === "archive") {
+    const startDate = url.searchParams.get("start") ?? "";
+    const endDate = url.searchParams.get("end") ?? "";
+    if (!DATE_PATTERN.test(startDate) || !DATE_PATTERN.test(endDate)) {
+      return Response.json({ message: "日期格式无效" }, { status: 400 });
+    }
+    if (startDate > endDate) return Response.json({ message: "开始日期不能晚于结束日期" }, { status: 400 });
+    return archive(auth, startDate, endDate);
   }
   return Response.json({ message: "未知的回看方式" }, { status: 400 });
 }
