@@ -14,7 +14,7 @@ import type {
   ReflectionMessageDto,
 } from "@journal/contracts";
 import type { Session } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   createEntry,
   deleteEntry,
@@ -33,18 +33,12 @@ import { enqueueEntry, loadOutbox, removePendingEntry } from "../lib/outbox";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 type SaveState = "idle" | "saving" | "saved" | "queued" | "error";
-const HOME_TIMELINE_LIMIT = 3;
+const ENTRY_COUNT_PROBE_LIMIT = 1;
 
 function sourceForDevice(): EntrySource {
   if (/iPhone|iPod/.test(navigator.userAgent)) return "iphone";
   if (navigator.maxTouchPoints > 1 && /Macintosh|iPad/.test(navigator.userAgent)) return "ipad_web";
   return "mac_web";
-}
-
-function dateKey(value: string): string {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric", month: "long", day: "numeric", weekday: "short",
-  }).format(new Date(value));
 }
 
 function timeLabel(value: string): string {
@@ -554,7 +548,25 @@ function MonthCalendar({ month, days, selectedDate, onSelect }: {
   );
 }
 
-function HistoryArchive({ onClose }: { onClose: () => void }) {
+function HistoryArchive({
+  analyses,
+  openConversationEntryId,
+  revision,
+  total,
+  onClose,
+  onContinue,
+  onDelete,
+  onRetryAnalysis,
+}: {
+  analyses: Record<string, AnalysisStateDto>;
+  openConversationEntryId: string | null;
+  revision: number;
+  total: number;
+  onClose: () => void;
+  onContinue: (entryId: string) => void;
+  onDelete: (entry: EntryDto) => void;
+  onRetryAnalysis: (entryId: string) => void;
+}) {
   const [month, setMonth] = useState(currentMonth);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [archive, setArchive] = useState<MonthArchiveResponse | null>(null);
@@ -568,7 +580,7 @@ function HistoryArchive({ onClose }: { onClose: () => void }) {
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "无法读取这个月的记录"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [month]);
+  }, [month, revision]);
 
   const visibleEntries = selectedDate
     ? (archive?.entries ?? []).filter((entry) => entry.localDate === selectedDate)
@@ -589,7 +601,7 @@ function HistoryArchive({ onClose }: { onClose: () => void }) {
         <div>
           <button className="history-back" type="button" onClick={onClose}>返回记录</button>
           <h2 id="history-title">完整历史</h2>
-          <p>按月份和日期回到任何一段已经写下的生活。</p>
+          <p>共 {total} 条记录，按月份和日期回到任何一段已经写下的生活。</p>
         </div>
         <label className="month-picker">选择月份<input type="month" value={month} onChange={(event) => chooseMonth(event.target.value)} /></label>
       </div>
@@ -614,7 +626,19 @@ function HistoryArchive({ onClose }: { onClose: () => void }) {
           {!loading && !error ? visibleEntries.map((entry) => (
             <article className="history-entry" key={entry.id}>
               <time dateTime={entry.occurredAt}>{localDateTitle(entry.localDate)} · {timeLabel(entry.occurredAt)}</time>
-              <p>{entry.content}</p>
+              <div className="history-entry-body">
+                <p className="history-entry-content">{entry.content}</p>
+                {entry.mode === "record_and_analyze" ? <AnalysisCard
+                  analysis={analyses[entry.id]}
+                  onRetry={() => onRetryAnalysis(entry.id)}
+                  onContinue={() => onContinue(entry.id)}
+                  conversationOpen={openConversationEntryId === entry.id}
+                /> : null}
+                {openConversationEntryId === entry.id ? <ReflectionConversation entryId={entry.id} onClose={() => onContinue(entry.id)} /> : null}
+                <div className="entry-actions">
+                  <button className="delete-trigger" type="button" onClick={() => onDelete(entry)}>删除</button>
+                </div>
+              </div>
             </article>
           )) : null}
           {archive?.truncated ? <p className="history-limit">这个月的记录超过 500 条，目前先显示前 500 条。</p> : null}
@@ -626,13 +650,13 @@ function HistoryArchive({ onClose }: { onClose: () => void }) {
 
 function Journal({ session, onChangePassword }: { session: Session; onChangePassword: () => void }) {
   const [content, setContent] = useState(() => typeof window === "undefined" ? "" : loadDraft());
-  const [entries, setEntries] = useState<EntryDto[]>([]);
   const [entryTotal, setEntryTotal] = useState(0);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisStateDto>>({});
   const [onThisDay, setOnThisDay] = useState<OnThisDayResponse | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(true);
   const [memoryError, setMemoryError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [message, setMessage] = useState("");
@@ -640,7 +664,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [pendingCount, setPendingCount] = useState(0);
   const [openConversationEntryId, setOpenConversationEntryId] = useState<string | null>(null);
   const [savingMode, setSavingMode] = useState<EntryMode | null>(null);
-  const [confirmDeleteEntryId, setConfirmDeleteEntryId] = useState<string | null>(null);
+  const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<EntryDto | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
@@ -662,8 +686,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   }, []);
 
   const refresh = useCallback(async () => {
-    const result = await fetchEntries({ limit: HOME_TIMELINE_LIMIT });
-    setEntries(result.entries);
+    const result = await fetchEntries({ limit: ENTRY_COUNT_PROBE_LIMIT });
     setEntryTotal(result.total);
     setServiceOnline(true);
     try {
@@ -737,17 +760,6 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const groups = useMemo(() => {
-    const grouped = new Map<string, EntryDto[]>();
-    for (const entry of entries) {
-      const key = dateKey(entry.occurredAt);
-      grouped.set(key, [...(grouped.get(key) ?? []), entry]);
-    }
-    return [...grouped.entries()];
-  }, [entries]);
-
-  const entryToDelete = entries.find((entry) => entry.id === confirmDeleteEntryId);
-
   async function submit(mode: EntryMode) {
     const normalized = content.trim();
     if (!normalized || saveState === "saving") return;
@@ -775,8 +787,8 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       const saved = await createEntry(request);
       removePendingEntry(request.operationId);
       setPendingCount(loadOutbox().length);
-      setEntries((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
       setEntryTotal((current) => current + 1);
+      setHistoryRevision((current) => current + 1);
       setServiceOnline(true);
       setSaveState("saved");
       setMessage(request.mode === "record_and_analyze" ? "记录已保存，正在生成回望" : "记录已保存");
@@ -796,15 +808,15 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     setDeleteError("");
     try {
       await deleteEntry(entryId);
-      setEntries((current) => current.filter((entry) => entry.id !== entryId));
       setEntryTotal((current) => Math.max(0, current - 1));
+      setHistoryRevision((current) => current + 1);
       setAnalyses((current) => {
         const next = { ...current };
         delete next[entryId];
         return next;
       });
       if (openConversationEntryId === entryId) setOpenConversationEntryId(null);
-      setConfirmDeleteEntryId(null);
+      setConfirmDeleteEntry(null);
       setServiceOnline(true);
       setToast({ id: crypto.randomUUID(), message: "记录已删除" });
       setDeletingEntryId(null);
@@ -832,7 +844,19 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         </div>
       </header>
 
-      {historyOpen ? <HistoryArchive onClose={() => setHistoryOpen(false)} /> : <div className="workspace">
+      {historyOpen ? <HistoryArchive
+        analyses={analyses}
+        openConversationEntryId={openConversationEntryId}
+        revision={historyRevision}
+        total={entryTotal}
+        onClose={() => setHistoryOpen(false)}
+        onContinue={(entryId) => setOpenConversationEntryId((current) => current === entryId ? null : entryId)}
+        onDelete={(entry) => {
+          setDeleteError("");
+          setConfirmDeleteEntry(entry);
+        }}
+        onRetryAnalysis={(entryId) => void runAnalysis(entryId)}
+      /> : <div className="workspace">
         <section className="composer" aria-labelledby="composer-title">
           <p className="section-label">此刻</p>
           <h2 id="composer-title">有什么想记下来的？</h2>
@@ -852,53 +876,29 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           <p className="shortcut">⌘ Enter 只保存 · AI 分析与原始记录分开保存</p>
         </section>
 
-        <section className="timeline" aria-labelledby="timeline-title">
-          <div className="timeline-heading">
-            <div><p className="section-label">时间线</p><h2 id="timeline-title">最近的记录</h2></div>
+        <section className="timeline home-review" aria-label="日记回顾">
+          <div className="timeline-heading home-review-toolbar">
+            <div><p className="section-label">回看</p><p className="home-review-intro">记录此刻，也看看一路走来的自己。</p></div>
             <div className="timeline-heading-actions">
               <span>{entryTotal} 条</span>
               <button type="button" onClick={() => setHistoryOpen(true)}>完整历史</button>
               <button type="button" onClick={() => setImportOpen(true)}>导入日记</button>
             </div>
           </div>
-          {loading ? <p className="empty">正在载入记录……</p> : null}
-          {!loading && entries.length === 0 ? <div className="empty-state"><span>○</span><p>第一条记录会出现在这里。</p></div> : null}
-          {groups.map(([day, dayEntries]) => (
-            <div className="day" key={day}><h3>{day}</h3>
-              {dayEntries.map((entry) => <article key={entry.id}>
-                <time dateTime={entry.occurredAt}>{timeLabel(entry.occurredAt)}</time>
-                <div className="entry-body">
-                  <p>{entry.content}</p>
-                  {entry.mode === "record_and_analyze" ? <AnalysisCard
-                    analysis={analyses[entry.id]}
-                    onRetry={() => void runAnalysis(entry.id)}
-                    onContinue={() => setOpenConversationEntryId((current) => current === entry.id ? null : entry.id)}
-                    conversationOpen={openConversationEntryId === entry.id}
-                  /> : null}
-                  {openConversationEntryId === entry.id ? <ReflectionConversation entryId={entry.id} onClose={() => setOpenConversationEntryId(null)} /> : null}
-                  <div className="entry-actions">
-                    <button className="delete-trigger" type="button" onClick={() => {
-                      setDeleteError("");
-                      setConfirmDeleteEntryId(entry.id);
-                    }}>删除</button>
-                  </div>
-                </div>
-              </article>)}
-            </div>
-          ))}
+          {loading ? <p className="memory-state">正在准备今天的回顾……</p> : null}
           <OnThisDay state={onThisDay} loading={memoryLoading} error={memoryError} />
         </section>
       </div>}
       <DeleteEntryDialog
-        entry={entryToDelete}
+        entry={confirmDeleteEntry ?? undefined}
         busy={Boolean(deletingEntryId)}
         error={deleteError}
         onCancel={() => {
           setDeleteError("");
-          setConfirmDeleteEntryId(null);
+          setConfirmDeleteEntry(null);
         }}
         onConfirm={() => {
-          if (entryToDelete) void removeEntry(entryToDelete.id);
+          if (confirmDeleteEntry) void removeEntry(confirmDeleteEntry.id);
         }}
       />
       {importOpen ? <JournalImportDialog

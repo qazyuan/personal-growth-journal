@@ -81,6 +81,7 @@ button, textarea, input { font: inherit; }
 .timeline-heading-actions > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .timeline-heading-actions button { border: 0; padding: 5px 0; color: var(--leaf); background: transparent; cursor: pointer; font-size: 12px; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
 .timeline-heading-actions button:hover { color: var(--leaf-dark); text-decoration-color: currentColor; }
+.home-review-intro { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .day { padding: 24px 0 10px; border-top: 1px solid var(--line); }
 .day h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .day article { display: grid; grid-template-columns: 54px 1fr; gap: 14px; padding: 16px 0; }
@@ -140,7 +141,8 @@ button, textarea, input { font: inherit; }
 .history-results-heading span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .history-entry { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 24px; padding: 22px 0; border-top: 1px solid var(--line); }
 .history-entry time { padding-top: 4px; color: #85887f; font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
-.history-entry p { margin: 0; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(80, 106, 75, .28) transparent; padding-right: 10px; white-space: pre-wrap; overflow-wrap: anywhere; color: #343832; font-size: 15px; line-height: 1.9; }
+.history-entry-body { min-width: 0; }
+.history-entry-content { margin: 0; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(80, 106, 75, .28) transparent; padding-right: 10px; white-space: pre-wrap; overflow-wrap: anywhere; color: #343832; font-size: 15px; line-height: 1.9; }
 .history-state { margin: 0; padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .history-state.error, .history-limit { color: #89584a; }
 .history-limit { margin: 16px 0 0; font-size: 11px; }
