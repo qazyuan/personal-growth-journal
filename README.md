@@ -72,6 +72,12 @@
    supabase/migrations/202610100005_soft_delete_entries.sql
    ```
 
+   为启用历史 Excel 日记导入，还需要继续执行：
+
+   ```text
+   supabase/migrations/202610100006_import_journal_entries.sql
+   ```
+
 4. 在 `apps/web/.env.local` 中配置服务端 AI 环境变量。以 DeepSeek 为例：
 
    ```dotenv
@@ -90,6 +96,8 @@
    ```bash
    npm run dev
    ```
+
+登录后可在“最近的记录”旁选择“导入日记”。当前导入器读取 `.xlsx` 的第 3 个工作表，要求至少包含“时间”和“文本内容”两列；“地址”“标签”“更新时间”为可选列。确认前会展示可导入、重复和错误记录，历史日记默认只保存原文，不自动触发 AI 分析。
 
 7. 打开 <http://localhost:3000>，创建账号或登录。
 
