@@ -57,21 +57,9 @@ function currentMonth(): string {
   return currentLocalDate().slice(0, 7);
 }
 
-function monthTitle(month: string): string {
-  const [year, numericMonth] = month.split("-");
-  return `${year}年${Number(numericMonth)}月`;
-}
-
 function localDateTitle(localDate: string): string {
   const [year, month, day] = localDate.split("-");
   return `${year}年${Number(month)}月${Number(day)}日`;
-}
-
-function monthDateRange(month: string): { startDate: string; endDate: string } {
-  const year = Number(month.slice(0, 4));
-  const numericMonth = Number(month.slice(5, 7));
-  const finalDay = new Date(year, numericMonth, 0).getDate();
-  return { startDate: `${month}-01`, endDate: `${month}-${String(finalDay).padStart(2, "0")}` };
 }
 
 function AnalysisCard({
@@ -527,36 +515,29 @@ function HistoryArchive({
   onDelete: (entry: EntryDto) => void;
   onRetryAnalysis: (entryId: string) => void;
 }) {
-  const [filterKind, setFilterKind] = useState<"month" | "range">("month");
-  const [month, setMonth] = useState(currentMonth);
   const [rangeStart, setRangeStart] = useState(() => `${currentMonth()}-01`);
   const [rangeEnd, setRangeEnd] = useState(currentLocalDate);
   const [archive, setArchive] = useState<ArchiveResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const dates = filterKind === "month"
-    ? monthDateRange(month)
-    : { startDate: rangeStart, endDate: rangeEnd };
-  const invalidRange = dates.startDate > dates.endDate;
+  const invalidRange = rangeStart > rangeEnd;
 
   useEffect(() => {
     if (invalidRange) return;
     let active = true;
-    void fetchArchive(dates.startDate, dates.endDate)
+    void fetchArchive(rangeStart, rangeEnd)
       .then((result) => { if (active) setArchive(result); })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "无法读取这段时间的记录"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [dates.endDate, dates.startDate, invalidRange, revision]);
+  }, [invalidRange, rangeEnd, rangeStart, revision]);
 
   const visibleEntries = archive?.entries ?? [];
   const visibleError = invalidRange ? "开始日期不能晚于结束日期" : error;
-  const resultTitle = filterKind === "month"
-    ? monthTitle(month)
-    : rangeStart === rangeEnd
-      ? localDateTitle(rangeStart)
-      : `${localDateTitle(rangeStart)} 至 ${localDateTitle(rangeEnd)}`;
+  const resultTitle = rangeStart === rangeEnd
+    ? localDateTitle(rangeStart)
+    : `${localDateTitle(rangeStart)} 至 ${localDateTitle(rangeEnd)}`;
 
   return (
     <section className="history-view" aria-labelledby="history-title">
@@ -564,49 +545,25 @@ function HistoryArchive({
         <div>
           <button className="history-back" type="button" onClick={onClose}>返回记录</button>
           <h2 id="history-title">完整历史</h2>
-          <p>共 {total} 条记录，按月份和日期回到任何一段已经写下的生活。</p>
+          <p>共 {total} 条记录，选择一段日期，回到那时已经写下的生活。</p>
         </div>
       </div>
       <div className="history-filter" aria-label="筛选日记时间">
-        <label>
-          <span>查看方式</span>
-          <select value={filterKind} onChange={(event) => {
+        <div className="date-range-fields">
+          <label><span>开始日期</span><input type="date" value={rangeStart} onChange={(event) => {
             setLoading(true);
             setError("");
             setArchive(null);
-            setFilterKind(event.target.value as "month" | "range");
-          }}>
-            <option value="month">按月查看</option>
-            <option value="range">日期范围</option>
-          </select>
-        </label>
-        {filterKind === "month" ? (
-          <label>
-            <span>选择月份</span>
-            <input type="month" value={month} onChange={(event) => {
-              setLoading(true);
-              setError("");
-              setArchive(null);
-              setMonth(event.target.value);
-            }} />
-          </label>
-        ) : (
-          <div className="date-range-fields">
-            <label><span>开始日期</span><input type="date" value={rangeStart} onChange={(event) => {
-              setLoading(true);
-              setError("");
-              setArchive(null);
-              setRangeStart(event.target.value);
-            }} /></label>
-            <i aria-hidden="true">至</i>
-            <label><span>结束日期</span><input type="date" value={rangeEnd} onChange={(event) => {
-              setLoading(true);
-              setError("");
-              setArchive(null);
-              setRangeEnd(event.target.value);
-            }} /></label>
-          </div>
-        )}
+            setRangeStart(event.target.value);
+          }} /></label>
+          <i aria-hidden="true">至</i>
+          <label><span>结束日期</span><input type="date" value={rangeEnd} onChange={(event) => {
+            setLoading(true);
+            setError("");
+            setArchive(null);
+            setRangeEnd(event.target.value);
+          }} /></label>
+        </div>
       </div>
       <div className="history-results">
           <div className="history-results-heading">
