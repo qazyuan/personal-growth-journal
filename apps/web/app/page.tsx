@@ -487,15 +487,11 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       setConfirmDeleteEntryId(null);
       setServiceOnline(true);
       setMessage("记录已删除");
-      try {
-        await refresh();
-      } catch {
-        setMessage("记录已删除；列表会在下次打开时再次同步");
-      }
+      setDeletingEntryId(null);
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "删除失败，请稍后重试");
     } finally {
-      setDeletingEntryId(null);
+      setDeletingEntryId((current) => current === entryId ? null : current);
     }
   }
 
