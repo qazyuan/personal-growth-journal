@@ -3,6 +3,8 @@ create table if not exists public.entries (
   user_id uuid not null references auth.users (id) on delete cascade,
   current_revision integer not null default 1 check (current_revision >= 1),
   occurred_at timestamptz not null,
+  local_date date not null,
+  timezone text not null check (char_length(timezone) between 1 and 100),
   source text not null check (source in ('iphone', 'mac_web', 'ipad_web', 'import')),
   mode text not null check (mode in ('record_only', 'record_and_analyze')),
   status text not null default 'active' check (status in ('active', 'deleted')),
@@ -69,6 +71,8 @@ create or replace function public.create_entry(
   p_entry_id uuid,
   p_operation_id uuid,
   p_occurred_at timestamptz,
+  p_local_date date,
+  p_timezone text,
   p_source text,
   p_mode text,
   p_content text
@@ -87,10 +91,12 @@ begin
   if v_user_id is null then raise exception 'authentication_required'; end if;
   if p_source not in ('iphone', 'mac_web', 'ipad_web', 'import') then raise exception 'invalid_source'; end if;
   if p_mode not in ('record_only', 'record_and_analyze') then raise exception 'invalid_mode'; end if;
+  if char_length(p_timezone) not between 1 and 100 then raise exception 'invalid_timezone'; end if;
   if char_length(btrim(p_content)) not between 1 and 20000 then raise exception 'invalid_content'; end if;
 
   v_hash := md5(jsonb_build_object(
-    'entry_id', p_entry_id, 'occurred_at', p_occurred_at, 'source', p_source,
+    'entry_id', p_entry_id, 'occurred_at', p_occurred_at, 'local_date', p_local_date,
+    'timezone', p_timezone, 'source', p_source,
     'mode', p_mode, 'content', btrim(p_content)
   )::text);
 
@@ -108,8 +114,8 @@ begin
     return v_existing_response;
   end if;
 
-  insert into public.entries (id, user_id, occurred_at, source, mode)
-  values (p_entry_id, v_user_id, p_occurred_at, p_source, p_mode);
+  insert into public.entries (id, user_id, occurred_at, local_date, timezone, source, mode)
+  values (p_entry_id, v_user_id, p_occurred_at, p_local_date, p_timezone, p_source, p_mode);
 
   insert into public.entry_revisions (entry_id, user_id, revision, content)
   values (p_entry_id, v_user_id, 1, btrim(p_content));
@@ -126,5 +132,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_entry(uuid, uuid, timestamptz, text, text, text) from public, anon;
-grant execute on function public.create_entry(uuid, uuid, timestamptz, text, text, text) to authenticated;
+revoke execute on function public.create_entry(uuid, uuid, timestamptz, date, text, text, text, text) from public, anon;
+grant execute on function public.create_entry(uuid, uuid, timestamptz, date, text, text, text, text) to authenticated;

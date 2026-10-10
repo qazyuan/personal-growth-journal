@@ -15,6 +15,8 @@ type EntryRow = {
   id: string;
   current_revision: number;
   occurred_at: string;
+  local_date: string;
+  timezone: string;
   created_at: string;
   updated_at: string;
   source: EntrySource;
@@ -27,6 +29,8 @@ function toDto(entry: EntryRow, content: string): EntryDto {
     id: entry.id,
     revision: entry.current_revision,
     occurredAt: entry.occurred_at,
+    localDate: entry.local_date,
+    timezone: entry.timezone,
     createdAt: entry.created_at,
     updatedAt: entry.updated_at,
     source: entry.source,
@@ -39,12 +43,18 @@ function toDto(entry: EntryRow, content: string): EntryDto {
 async function loadEntries(auth: AuthContext): Promise<EntryDto[] | Response> {
   const { data: entries, error } = await auth.client
     .from("entries")
-    .select("id,current_revision,occurred_at,created_at,updated_at,source,mode,status")
+    .select("id,current_revision,occurred_at,local_date,timezone,created_at,updated_at,source,mode,status")
     .eq("user_id", auth.userId)
     .eq("status", "active")
     .order("occurred_at", { ascending: false })
     .limit(100);
-  if (error) return Response.json({ message: "读取记录失败，请确认数据库迁移已完成" }, { status: 503 });
+  if (error) {
+    const schemaOutdated = error.code === "42703" || error.code === "PGRST204";
+    return Response.json(
+      { message: schemaOutdated ? "数据库需要执行最新增量迁移" : "读取记录失败，请确认数据库迁移已完成" },
+      { status: 503 },
+    );
+  }
   if (!entries?.length) return [];
 
   const { data: revisions, error: revisionError } = await auth.client
@@ -74,10 +84,13 @@ function parseBody(value: unknown): CreateEntryRequest | null {
   const body = value as Partial<CreateEntryRequest>;
   const content = typeof body.content === "string" ? body.content.trim() : "";
   const occurredAt = typeof body.occurredAt === "string" ? new Date(body.occurredAt) : null;
+  const localDate = typeof body.localDate === "string" ? body.localDate : "";
+  const timezone = typeof body.timezone === "string" ? body.timezone : "";
   if (!body.id || !UUID_PATTERN.test(body.id) || !body.operationId || !UUID_PATTERN.test(body.operationId)) return null;
   if (!body.source || !SOURCES.has(body.source) || !body.mode || !MODES.has(body.mode)) return null;
   if (!content || content.length > 20_000 || !occurredAt || Number.isNaN(occurredAt.getTime())) return null;
-  return { ...body, content, occurredAt: occurredAt.toISOString() } as CreateEntryRequest;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(localDate) || !timezone || timezone.length > 100) return null;
+  return { ...body, content, localDate, timezone, occurredAt: occurredAt.toISOString() } as CreateEntryRequest;
 }
 
 export async function POST(request: Request) {
@@ -90,21 +103,24 @@ export async function POST(request: Request) {
     p_entry_id: body.id,
     p_operation_id: body.operationId,
     p_occurred_at: body.occurredAt,
+    p_local_date: body.localDate,
+    p_timezone: body.timezone,
     p_source: body.source,
     p_mode: body.mode,
     p_content: body.content,
   });
   if (error) {
     const conflict = error.message.includes("operation_id_conflict");
+    const schemaOutdated = error.code === "PGRST202" || error.code === "42883" || error.code === "42703";
     return Response.json(
-      { message: conflict ? "这次保存编号已用于另一条内容" : "保存失败，请稍后重试" },
-      { status: conflict ? 409 : 500 },
+      { message: conflict ? "这次保存编号已用于另一条内容" : schemaOutdated ? "数据库需要执行最新增量迁移" : "保存失败，请稍后重试" },
+      { status: conflict ? 409 : schemaOutdated ? 503 : 500 },
     );
   }
 
   const { data: entry, error: entryError } = await auth.client
     .from("entries")
-    .select("id,current_revision,occurred_at,created_at,updated_at,source,mode,status")
+    .select("id,current_revision,occurred_at,local_date,timezone,created_at,updated_at,source,mode,status")
     .eq("id", body.id)
     .single();
   const { data: revision, error: revisionError } = await auth.client

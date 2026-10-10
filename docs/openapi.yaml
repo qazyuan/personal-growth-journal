@@ -24,6 +24,50 @@ paths:
           description: Entry created
         "409":
           description: Idempotency or entry conflict
+  /api/analyses:
+    get:
+      summary: List analysis states and persisted results for recent entries
+      responses:
+        "200":
+          description: Analysis state map keyed by entry ID
+  /api/entries/{id}/analysis:
+    post:
+      summary: Run or retry the requested analysis for one entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Analysis completed or an existing result returned
+        "202":
+          description: Another request is already analyzing this entry
+        "503":
+          description: Database migration or AI provider configuration required
+  /api/entries/{id}/conversation:
+    get:
+      summary: Load the reflection conversation bound to an entry revision
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Conversation and ordered messages
+    post:
+      summary: Append one user turn and generate one grounded assistant response
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated conversation
+        "409":
+          description: Previous turn still running
 components:
   securitySchemes:
     supabaseBearer:
@@ -34,11 +78,21 @@ components:
     CreateEntryRequest:
       type: object
       additionalProperties: false
-      required: [id, operationId, occurredAt, source, mode, content]
+      required: [id, operationId, occurredAt, localDate, timezone, source, mode, content]
       properties:
         id: { type: string, format: uuid }
         operationId: { type: string, format: uuid }
         occurredAt: { type: string, format: date-time }
+        localDate: { type: string, format: date }
+        timezone: { type: string, example: Asia/Shanghai }
         source: { type: string, enum: [iphone, mac_web, ipad_web, import] }
         mode: { type: string, enum: [record_only, record_and_analyze] }
         content: { type: string, minLength: 1, maxLength: 20000 }
+    AnalysisState:
+      type: object
+      required: [entryId, status]
+      properties:
+        entryId: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, completed, failed] }
+        result: { type: object }
+        message: { type: string }

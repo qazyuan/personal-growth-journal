@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "芽儿 · 成长记录",
-  description: "一处记录，慢慢看见自己的变化。",
+  title: "来时路 · 个人成长记录",
+  description: "记录此刻，看见一路走来的自己。",
 };
 
 export const viewport: Viewport = {
