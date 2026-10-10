@@ -349,6 +349,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [confirmDeleteEntryId, setConfirmDeleteEntryId] = useState<string | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -419,6 +420,14 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
 
   useEffect(() => { saveDraft(content); }, [content]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => {
+      setToast((current) => current?.id === toast.id ? null : current);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   const groups = useMemo(() => {
     const grouped = new Map<string, EntryDto[]>();
     for (const entry of entries) {
@@ -486,7 +495,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       if (openConversationEntryId === entryId) setOpenConversationEntryId(null);
       setConfirmDeleteEntryId(null);
       setServiceOnline(true);
-      setMessage("记录已删除");
+      setToast({ id: crypto.randomUUID(), message: "记录已删除" });
       setDeletingEntryId(null);
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "删除失败，请稍后重试");
@@ -573,6 +582,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           if (entryToDelete) void removeEntry(entryToDelete.id);
         }}
       />
+      {toast ? <div className="status-toast" role="status">{toast.message}</div> : null}
     </main>
   );
 }
