@@ -60,18 +60,19 @@ button, textarea, input { font: inherit; }
 .workspace { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 42px; padding-top: 44px; align-items: start; }
 .composer { position: sticky; top: 28px; padding: 30px; border: 1px solid var(--line); border-radius: 22px; background: var(--white); box-shadow: 0 24px 60px rgba(69, 62, 48, 0.08); backdrop-filter: blur(16px); }
 .composer h2, .timeline h2 { margin: 7px 0 22px; font-size: 25px; line-height: 1.3; font-weight: 650; letter-spacing: -0.045em; }
-.mode-switch { display: inline-flex; gap: 4px; margin: -8px 0 16px; padding: 4px; border-radius: 999px; background: var(--paper-deep); }
-.mode-switch button { border: 0; border-radius: 999px; padding: 7px 13px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; }
-.mode-switch button.active { color: white; background: var(--leaf); }
 .composer textarea { width: 100%; resize: vertical; min-height: 210px; padding: 18px 0; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); outline: 0; color: #343832; background: transparent; font-size: 16px; font-weight: 400; line-height: 1.85; letter-spacing: .005em; }
 .composer textarea::placeholder { color: #a19f97; }
 .composer-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 18px; }
 .save-message { min-height: 20px; color: var(--muted); font-size: 12px; }
 .save-message.saved { color: var(--leaf); }
 .save-message.error { color: #9a4e42; }
-.composer .primary-button { border: 0; border-radius: 999px; padding: 11px 20px; color: white; background: var(--leaf-dark); cursor: pointer; transition: transform 150ms ease, opacity 150ms ease; }
-.composer .primary-button:hover:not(:disabled) { transform: translateY(-1px); }
-.composer .primary-button:disabled { opacity: 0.42; cursor: default; }
+.save-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }
+.composer .primary-button, .composer .secondary-button { border-radius: 999px; padding: 10px 17px; cursor: pointer; transition: transform 150ms ease, opacity 150ms ease, background 150ms ease; }
+.composer .primary-button { border: 1px solid var(--leaf-dark); color: white; background: var(--leaf-dark); }
+.composer .secondary-button { border: 1px solid rgba(80, 106, 75, .28); color: var(--leaf-dark); background: rgba(255, 255, 255, .5); }
+.composer .primary-button:hover:not(:disabled), .composer .secondary-button:hover:not(:disabled) { transform: translateY(-1px); }
+.composer .secondary-button:hover:not(:disabled) { background: rgba(80, 106, 75, .08); }
+.composer .primary-button:disabled, .composer .secondary-button:disabled { opacity: 0.42; cursor: default; }
 .shortcut { margin: 15px 0 0; color: #98978f; font-size: 11px; }
 
 .timeline-heading { display: flex; justify-content: space-between; align-items: center; }
@@ -135,6 +136,9 @@ button, textarea, input { font: inherit; }
   .workspace { grid-template-columns: 1fr; gap: 34px; padding-top: 28px; }
   .composer { position: static; padding: 24px 20px; }
   .composer textarea { min-height: 150px; }
+  .composer-footer { align-items: flex-start; flex-direction: column; }
+  .save-actions { width: 100%; }
+  .save-actions button { flex: 1; }
   .topbar { align-items: center; }
   .eyebrow { display: none; }
   .sync-mark { font-size: 11px; }

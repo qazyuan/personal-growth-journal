@@ -286,7 +286,6 @@ function ResetPasswordScreen({ onDone, onCancel }: { onDone: () => void; onCance
 
 function Journal({ session, onChangePassword }: { session: Session; onChangePassword: () => void }) {
   const [content, setContent] = useState(() => typeof window === "undefined" ? "" : loadDraft());
-  const [mode, setMode] = useState<EntryMode>("record_only");
   const [entries, setEntries] = useState<EntryDto[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisStateDto>>({});
   const [loading, setLoading] = useState(true);
@@ -295,6 +294,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [serviceOnline, setServiceOnline] = useState<boolean | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [openConversationEntryId, setOpenConversationEntryId] = useState<string | null>(null);
+  const [savingMode, setSavingMode] = useState<EntryMode | null>(null);
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -374,7 +374,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     return [...grouped.entries()];
   }, [entries]);
 
-  async function submit() {
+  async function submit(mode: EntryMode) {
     const normalized = content.trim();
     if (!normalized || saveState === "saving") return;
     const request: CreateEntryRequest = {
@@ -394,6 +394,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     setPendingCount(loadOutbox().length);
     setContent("");
     saveDraft("");
+    setSavingMode(mode);
     setSaveState("saving");
     setMessage("已留在本机，正在同步…");
     try {
@@ -409,11 +410,13 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       setServiceOnline(false);
       setSaveState("queued");
       setMessage(error instanceof Error ? `${error.message}；已留在本机，稍后可安全重试` : "同步暂不可用，已留在本机");
+    } finally {
+      setSavingMode(null);
     }
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && event.metaKey) { event.preventDefault(); void submit(); }
+    if (event.key === "Enter" && event.metaKey) { event.preventDefault(); void submit("record_only"); }
   }
 
   return (
@@ -433,19 +436,20 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         <section className="composer" aria-labelledby="composer-title">
           <p className="section-label">此刻</p>
           <h2 id="composer-title">有什么想记下来的？</h2>
-          <div className="mode-switch" role="group" aria-label="保存模式">
-            <button type="button" className={mode === "record_only" ? "active" : ""} onClick={() => setMode("record_only")}>只记录</button>
-            <button type="button" className={mode === "record_and_analyze" ? "active" : ""} onClick={() => setMode("record_and_analyze")}>记录并分析</button>
-          </div>
           <textarea value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onKeyDown}
             placeholder="不用整理，先写下来……" rows={8} autoFocus />
           <div className="composer-footer">
             <span className={`save-message ${saveState}`}>{message || "输入内容会先留在当前设备"}</span>
-            <button className="primary-button" type="button" onClick={() => void submit()} disabled={!content.trim() || saveState === "saving"}>
-              {saveState === "saving" ? "同步中" : "保存记录"}
-            </button>
+            <div className="save-actions" role="group" aria-label="保存记录">
+              <button className="secondary-button" type="button" onClick={() => void submit("record_only")} disabled={!content.trim() || saveState === "saving"}>
+                {savingMode === "record_only" ? "保存中" : "只保存"}
+              </button>
+              <button className="primary-button" type="button" onClick={() => void submit("record_and_analyze")} disabled={!content.trim() || saveState === "saving"}>
+                {savingMode === "record_and_analyze" ? "保存中" : "保存并分析"}
+              </button>
+            </div>
           </div>
-          <p className="shortcut">⌘ Enter 快速保存 · AI 任务与原始记录分开保存</p>
+          <p className="shortcut">⌘ Enter 只保存 · AI 分析与原始记录分开保存</p>
         </section>
 
         <section className="timeline" aria-labelledby="timeline-title">
