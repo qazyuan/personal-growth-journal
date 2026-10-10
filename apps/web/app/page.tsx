@@ -33,7 +33,7 @@ import { enqueueEntry, loadOutbox, removePendingEntry } from "../lib/outbox";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 type SaveState = "idle" | "saving" | "saved" | "queued" | "error";
-const TIMELINE_PAGE_SIZE = 20;
+const HOME_TIMELINE_LIMIT = 3;
 
 function sourceForDevice(): EntrySource {
   if (/iPhone|iPod/.test(navigator.userAgent)) return "iphone";
@@ -662,7 +662,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   }, []);
 
   const refresh = useCallback(async () => {
-    const result = await fetchEntries({ limit: TIMELINE_PAGE_SIZE });
+    const result = await fetchEntries({ limit: HOME_TIMELINE_LIMIT });
     setEntries(result.entries);
     setEntryTotal(result.total);
     setServiceOnline(true);
