@@ -44,6 +44,42 @@ export interface DeleteEntryResponse {
   status: "deleted";
 }
 
+export interface JournalImportPreviewEntry {
+  rowNumber: number;
+  occurredAt: string;
+  localDate: string;
+  contentPreview: string;
+  address?: string;
+  tags?: string;
+  duplicate: boolean;
+}
+
+export interface JournalImportRowError {
+  rowNumber: number;
+  message: string;
+}
+
+export interface JournalImportPreviewResponse {
+  fileName: string;
+  sheetName: "日记";
+  assumedTimezone: string;
+  totalRows: number;
+  importableRows: number;
+  duplicateRows: number;
+  invalidRows: number;
+  entries: JournalImportPreviewEntry[];
+  errors: JournalImportRowError[];
+}
+
+export interface JournalImportResult {
+  batchId: string;
+  totalRows: number;
+  importedRows: number;
+  duplicateRows: number;
+  invalidRows: number;
+  replayed: boolean;
+}
+
 export type AnalysisStatus = "queued" | "running" | "completed" | "failed";
 
 export interface ReflectionObservation {
