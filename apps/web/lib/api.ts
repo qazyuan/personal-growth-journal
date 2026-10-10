@@ -5,6 +5,8 @@ import type {
   CreateEntryResponse,
   DeleteEntryResponse,
   EntryListResponse,
+  JournalImportPreviewResponse,
+  JournalImportResult,
   ReflectionConversationDto,
   SendReflectionMessageRequest,
 } from "@journal/contracts";
@@ -18,14 +20,13 @@ async function request<T>(path: string, init?: RequestInit, allowRefresh = true)
 
   let response: Response;
   try {
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     response = await fetch(path, {
       ...init,
       cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
+      headers,
     });
   } catch {
     throw new Error("无法连接记录服务");
@@ -54,6 +55,20 @@ export function createEntry(body: CreateEntryRequest): Promise<CreateEntryRespon
 
 export function deleteEntry(entryId: string): Promise<DeleteEntryResponse> {
   return request<DeleteEntryResponse>(`/api/entries/${entryId}`, { method: "DELETE" });
+}
+
+function journalImportForm(file: File): FormData {
+  const form = new FormData();
+  form.set("file", file);
+  return form;
+}
+
+export function previewJournalImport(file: File): Promise<JournalImportPreviewResponse> {
+  return request<JournalImportPreviewResponse>("/api/imports/preview", { method: "POST", body: journalImportForm(file) });
+}
+
+export function importJournal(file: File): Promise<JournalImportResult> {
+  return request<JournalImportResult>("/api/imports", { method: "POST", body: journalImportForm(file) });
 }
 
 export function fetchAnalyses(): Promise<AnalysisListResponse> {

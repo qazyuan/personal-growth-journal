@@ -6,6 +6,8 @@ import type {
   EntryDto,
   EntryMode,
   EntrySource,
+  JournalImportPreviewResponse,
+  JournalImportResult,
   ReflectionConversationDto,
   ReflectionMessageDto,
 } from "@journal/contracts";
@@ -17,6 +19,8 @@ import {
   fetchAnalyses,
   fetchEntries,
   fetchReflectionConversation,
+  importJournal,
+  previewJournalImport,
   requestAnalysis,
   sendReflectionMessage,
 } from "../lib/api";
@@ -225,6 +229,123 @@ function DeleteEntryDialog({
   );
 }
 
+function JournalImportDialog({
+  onCancel,
+  onImported,
+}: {
+  onCancel: () => void;
+  onImported: (result: JournalImportResult) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<JournalImportPreviewResponse | null>(null);
+  const [state, setState] = useState<"idle" | "previewing" | "ready" | "importing">("idle");
+  const [error, setError] = useState("");
+  const busy = state === "previewing" || state === "importing";
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, onCancel]);
+
+  async function inspectFile(selected: File) {
+    setFile(selected);
+    setPreview(null);
+    setError("");
+    setState("previewing");
+    try {
+      setPreview(await previewJournalImport(selected));
+      setState("ready");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Excel 文件读取失败");
+      setState("idle");
+    }
+  }
+
+  async function confirmImport() {
+    if (!file || !preview?.importableRows || busy) return;
+    setState("importing");
+    setError("");
+    try {
+      onImported(await importJournal(file));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "历史日记导入失败");
+      setState("ready");
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !busy) onCancel();
+    }}>
+      <section className="import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-dialog-title">
+        <div className="import-dialog-heading">
+          <div>
+            <h2 id="import-dialog-title">导入历史日记</h2>
+            <p>读取 Excel 第 3 个工作表“日记”，先预览，再写入时间线。</p>
+          </div>
+          <button className="text-button" type="button" onClick={onCancel} disabled={busy}>关闭</button>
+        </div>
+
+        <label className={`import-file-field ${busy ? "busy" : ""}`}>
+          <span>{state === "previewing" ? "正在读取 Excel…" : file ? file.name : "选择 Excel 文件"}</span>
+          <small>.xlsx · 最大 10 MB</small>
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(event) => {
+              const selected = event.target.files?.[0];
+              if (selected) void inspectFile(selected);
+            }}
+            disabled={busy}
+          />
+        </label>
+
+        {preview ? (
+          <div className="import-preview" aria-live="polite">
+            <dl className="import-summary">
+              <div><dt>将导入</dt><dd>{preview.importableRows} 条</dd></div>
+              <div><dt>已存在</dt><dd>{preview.duplicateRows} 条</dd></div>
+              <div><dt>需修正</dt><dd>{preview.invalidRows} 条</dd></div>
+            </dl>
+            <p className="import-note">时间按 Asia/Shanghai 解释；历史记录只保存原文，不自动发起 AI 分析。</p>
+            {preview.entries.length ? (
+              <div className="import-entry-list">
+                {preview.entries.map((entry) => (
+                  <div className={entry.duplicate ? "duplicate" : ""} key={entry.rowNumber}>
+                    <div>
+                      <time dateTime={entry.occurredAt}>{entry.localDate} · {timeLabel(entry.occurredAt)}</time>
+                      {entry.duplicate ? <span>已存在</span> : null}
+                    </div>
+                    <p>{entry.contentPreview}</p>
+                    {entry.address || entry.tags ? <small>{[entry.address, entry.tags].filter(Boolean).join(" · ")}</small> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {preview.errors.length ? (
+              <div className="import-errors">
+                <p>以下内容需要先修正：</p>
+                <ul>{preview.errors.map((item) => <li key={item.rowNumber}>第 {item.rowNumber} 行：{item.message}</li>)}</ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {error ? <p className="import-error" role="alert">{error}</p> : null}
+        <div className="import-dialog-actions">
+          <button type="button" onClick={onCancel} disabled={busy}>取消</button>
+          <button className="primary-button" type="button" onClick={() => void confirmImport()} disabled={!preview?.importableRows || busy}>
+            {state === "importing" ? "正在导入…" : preview?.importableRows ? `导入 ${preview.importableRows} 条` : "确认导入"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 type AuthMode = "login" | "register" | "forgot";
 
 function friendlyAuthError(message: string): string {
@@ -350,6 +471,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -542,7 +664,10 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         </section>
 
         <section className="timeline" aria-labelledby="timeline-title">
-          <div className="timeline-heading"><div><p className="section-label">时间线</p><h2 id="timeline-title">最近的记录</h2></div><span>{entries.length} 条</span></div>
+          <div className="timeline-heading">
+            <div><p className="section-label">时间线</p><h2 id="timeline-title">最近的记录</h2></div>
+            <div className="timeline-heading-actions"><span>{entries.length} 条</span><button type="button" onClick={() => setImportOpen(true)}>导入日记</button></div>
+          </div>
           {loading ? <p className="empty">正在载入记录……</p> : null}
           {!loading && entries.length === 0 ? <div className="empty-state"><span>○</span><p>第一条记录会出现在这里。</p></div> : null}
           {groups.map(([day, dayEntries]) => (
@@ -582,6 +707,19 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           if (entryToDelete) void removeEntry(entryToDelete.id);
         }}
       />
+      {importOpen ? <JournalImportDialog
+        onCancel={() => setImportOpen(false)}
+        onImported={(result) => {
+          setImportOpen(false);
+          const message = result.replayed
+            ? "这份 Excel 此前已经导入"
+            : `已导入 ${result.importedRows} 条${result.duplicateRows ? `，跳过 ${result.duplicateRows} 条重复` : ""}`;
+          setToast({ id: crypto.randomUUID(), message });
+          void refresh().catch((reason: unknown) => {
+            setMessage(reason instanceof Error ? reason.message : "导入完成，列表稍后刷新");
+          });
+        }}
+      /> : null}
       {toast ? <div className="status-toast" role="status">{toast.message}</div> : null}
     </main>
   );

@@ -77,7 +77,10 @@ button, textarea, input { font: inherit; }
 .shortcut { margin: 15px 0 0; color: #98978f; font-size: 11px; }
 
 .timeline-heading { display: flex; justify-content: space-between; align-items: center; }
-.timeline-heading > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.timeline-heading-actions { display: flex; align-items: center; gap: 13px; }
+.timeline-heading-actions > span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.timeline-heading-actions button { border: 0; padding: 5px 0; color: var(--leaf); background: transparent; cursor: pointer; font-size: 12px; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.timeline-heading-actions button:hover { color: var(--leaf-dark); text-decoration-color: currentColor; }
 .day { padding: 24px 0 10px; border-top: 1px solid var(--line); }
 .day h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .day article { display: grid; grid-template-columns: 54px 1fr; gap: 14px; padding: 16px 0; }
@@ -98,6 +101,39 @@ button, textarea, input { font: inherit; }
 .delete-dialog-actions button { border: 0; border-radius: 999px; padding: 8px 14px; color: #6f716a; background: rgba(87, 91, 82, .08); cursor: pointer; font-size: 12px; }
 .delete-dialog-actions .danger-button { color: white; background: #89584a; }
 .delete-dialog-actions button:disabled { opacity: .48; cursor: default; }
+.import-dialog { width: min(640px, 100%); max-height: min(84vh, 760px); overflow-y: auto; overscroll-behavior: contain; padding: 26px; border: 1px solid rgba(80, 106, 75, .18); border-radius: 20px; background: #fbf8f1; box-shadow: 0 28px 86px rgba(48, 42, 34, .24); }
+.import-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.import-dialog-heading h2 { margin: 0; color: #363832; font-family: var(--font-heading); font-size: 22px; line-height: 1.4; font-weight: 600; letter-spacing: -.02em; }
+.import-dialog-heading p { margin: 5px 0 0; color: #777970; font-size: 12px; line-height: 1.7; }
+.import-file-field { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 22px; padding: 14px 16px; border: 1px dashed rgba(80, 106, 75, .38); border-radius: 13px; color: var(--leaf-dark); background: rgba(255, 255, 255, .45); cursor: pointer; }
+.import-file-field:hover { border-color: rgba(80, 106, 75, .68); background: rgba(80, 106, 75, .045); }
+.import-file-field.busy { cursor: wait; opacity: .68; }
+.import-file-field span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.import-file-field small { flex: 0 0 auto; color: #92948c; font-size: 10px; }
+.import-file-field input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: inherit; }
+.import-preview { margin-top: 20px; }
+.import-summary { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
+.import-summary > div { display: flex; align-items: baseline; gap: 7px; }
+.import-summary dt { color: #808279; font-size: 11px; }
+.import-summary dd { margin: 0; color: #394537; font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.import-note { margin: 13px 0 0; color: #85877f; font-size: 11px; line-height: 1.65; }
+.import-entry-list { max-height: 280px; margin-top: 15px; overflow-y: auto; border-top: 1px solid var(--line); scrollbar-width: thin; scrollbar-color: rgba(80, 106, 75, .25) transparent; }
+.import-entry-list > div { padding: 12px 2px; border-bottom: 1px solid var(--line); }
+.import-entry-list > div.duplicate { opacity: .56; }
+.import-entry-list > div > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.import-entry-list time { color: #757970; font-size: 11px; font-variant-numeric: tabular-nums; }
+.import-entry-list div > span { flex: 0 0 auto; color: #89584a; font-size: 10px; }
+.import-entry-list p { display: -webkit-box; margin: 6px 0 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #484d46; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.import-entry-list small { display: block; margin-top: 5px; color: #8a8d84; font-size: 10px; }
+.import-errors { margin-top: 14px; padding: 11px 13px; border-radius: 10px; color: #89584a; background: rgba(137, 88, 74, .06); font-size: 11px; line-height: 1.65; }
+.import-errors p { margin: 0; }
+.import-errors ul { margin: 5px 0 0; padding-left: 18px; }
+.import-error { margin: 14px 0 0; color: #89584a; font-size: 12px; line-height: 1.65; }
+.import-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; padding-top: 17px; border-top: 1px solid var(--line); }
+.import-dialog-actions button { border-radius: 999px; padding: 8px 14px; cursor: pointer; font-size: 12px; }
+.import-dialog-actions > button:first-child { border: 0; color: #6f716a; background: rgba(87, 91, 82, .08); }
+.import-dialog-actions .primary-button { border: 1px solid var(--leaf-dark); color: white; background: var(--leaf-dark); }
+.import-dialog-actions button:disabled { opacity: .42; cursor: default; }
 .status-toast { position: fixed; top: calc(env(safe-area-inset-top) + 18px); left: 50%; z-index: 30; max-width: calc(100vw - 40px); transform: translateX(-50%); padding: 9px 14px; border: 1px solid rgba(80, 106, 75, .14); border-radius: 999px; color: #f7f5ee; background: rgba(52, 75, 49, .92); box-shadow: 0 12px 34px rgba(48, 58, 43, .18); pointer-events: none; font-size: 12px; line-height: 1.4; }
 .analysis-card { margin-top: 13px; padding: 14px 16px; border: 1px solid rgba(80, 106, 75, 0.15); border-radius: 14px; background: rgba(255, 255, 255, 0.44); color: #4e554b; font-size: 13px; line-height: 1.7; }
 .analysis-card.pending { display: flex; align-items: center; gap: 9px; color: var(--muted); }
@@ -161,6 +197,11 @@ button, textarea, input { font: inherit; }
   .conversation-message p { max-width: 88%; }
   .conversation-composer { margin-inline: 10px; }
   .analysis-actions { align-items: flex-end; }
+  .import-dialog { max-height: 88vh; padding: 22px 18px; }
+  .import-dialog-heading { gap: 16px; }
+  .import-file-field { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .import-summary { gap: 10px; }
+  .import-summary > div { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
