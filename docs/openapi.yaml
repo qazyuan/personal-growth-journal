@@ -7,7 +7,7 @@ security:
 paths:
   /api/entries:
     get:
-      summary: List active entries in reverse chronological order
+      summary: List active entries in reverse chronological order with offset pagination
       responses:
         "200":
           description: Entry list
@@ -83,6 +83,25 @@ paths:
           description: Updated conversation
         "409":
           description: Previous turn still running
+  /api/reviews:
+    get:
+      summary: Read deterministic journal memories without AI
+      parameters:
+        - in: query
+          name: kind
+          required: true
+          schema: { type: string, enum: [on_this_day, month] }
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+          description: Required for on_this_day
+        - in: query
+          name: month
+          schema: { type: string, pattern: "^[0-9]{4}-[0-9]{2}$" }
+          description: Required for month
+      responses:
+        "200":
+          description: Matching original journal entries and calendar counts
 components:
   securitySchemes:
     supabaseBearer:
