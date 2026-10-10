@@ -87,11 +87,16 @@ button, textarea, input { font: inherit; }
 .entry-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .delete-trigger { border: 0; padding: 5px 0; color: #94958e; background: transparent; cursor: pointer; font-size: 11px; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
 .delete-trigger:hover { color: #89584a; text-decoration-color: currentColor; }
-.delete-confirm { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid rgba(137, 88, 74, .17); border-radius: 11px; color: #704b43; background: rgba(255, 247, 243, .72); font-size: 11px; line-height: 1.5; }
-.delete-confirm > div { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
-.delete-confirm button { border: 0; border-radius: 999px; padding: 6px 10px; color: #776255; background: rgba(119, 98, 85, .08); cursor: pointer; font-size: 11px; }
-.delete-confirm .danger-button { color: white; background: #89584a; }
-.delete-confirm button:disabled { opacity: .48; cursor: default; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(37, 40, 35, .28); backdrop-filter: blur(4px); }
+.delete-dialog { width: min(420px, 100%); padding: 25px; border: 1px solid rgba(137, 88, 74, .18); border-radius: 18px; background: #fbf8f1; box-shadow: 0 26px 80px rgba(48, 42, 34, .22); }
+.delete-dialog h2 { margin: 0; color: #363832; font-size: 20px; line-height: 1.35; font-weight: 650; letter-spacing: -.025em; }
+.delete-dialog > p { margin: 9px 0 0; color: #777970; font-size: 12px; line-height: 1.7; }
+.delete-dialog .delete-dialog-preview { display: -webkit-box; margin-top: 17px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; padding: 12px 14px; border-left: 2px solid rgba(80, 106, 75, .3); color: #53574f; background: rgba(80, 106, 75, .055); font-size: 13px; }
+.delete-dialog .delete-dialog-error { color: #89584a; }
+.delete-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.delete-dialog-actions button { border: 0; border-radius: 999px; padding: 8px 14px; color: #6f716a; background: rgba(87, 91, 82, .08); cursor: pointer; font-size: 12px; }
+.delete-dialog-actions .danger-button { color: white; background: #89584a; }
+.delete-dialog-actions button:disabled { opacity: .48; cursor: default; }
 .analysis-card { margin-top: 13px; padding: 14px 16px; border: 1px solid rgba(80, 106, 75, 0.15); border-radius: 14px; background: rgba(255, 255, 255, 0.44); color: #4e554b; font-size: 13px; line-height: 1.7; }
 .analysis-card.pending { display: flex; align-items: center; gap: 9px; color: var(--muted); }
 .analysis-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #78906f; box-shadow: 0 0 0 4px rgba(120, 144, 111, .12); animation: breathe 1.5s ease-in-out infinite; }
@@ -147,8 +152,6 @@ button, textarea, input { font: inherit; }
   .composer-footer { align-items: flex-start; flex-direction: column; }
   .save-actions { width: 100%; }
   .save-actions button { flex: 1; }
-  .delete-confirm { align-items: flex-start; flex-direction: column; }
-  .delete-confirm > div { width: 100%; justify-content: flex-end; }
   .topbar { align-items: center; }
   .eyebrow { display: none; }
   .sync-mark { font-size: 11px; }

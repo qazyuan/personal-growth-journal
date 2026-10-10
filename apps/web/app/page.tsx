@@ -175,6 +175,56 @@ function ReflectionConversation({ entryId, onClose }: { entryId: string; onClose
   );
 }
 
+function DeleteEntryDialog({
+  entry,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  entry?: EntryDto;
+  busy: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    if (!entry) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, entry, onCancel]);
+
+  if (!entry) return null;
+
+  return (
+    <div className="dialog-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !busy) onCancel();
+    }}>
+      <section
+        className="delete-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <h2 id="delete-dialog-title">确定删除这条记录吗？</h2>
+        <p id="delete-dialog-description">删除后会从时间线移除，当前版本无法恢复。</p>
+        <p className="delete-dialog-preview">{entry.content}</p>
+        {error ? <p className="delete-dialog-error" role="alert">{error}</p> : null}
+        <div className="delete-dialog-actions">
+          <button type="button" onClick={onCancel} disabled={busy} autoFocus>取消</button>
+          <button className="danger-button" type="button" onClick={onConfirm} disabled={busy}>
+            {busy ? "删除中" : "确认删除"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 type AuthMode = "login" | "register" | "forgot";
 
 function friendlyAuthError(message: string): string {
@@ -298,6 +348,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [savingMode, setSavingMode] = useState<EntryMode | null>(null);
   const [confirmDeleteEntryId, setConfirmDeleteEntryId] = useState<string | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -377,6 +428,8 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     return [...grouped.entries()];
   }, [entries]);
 
+  const entryToDelete = entries.find((entry) => entry.id === confirmDeleteEntryId);
+
   async function submit(mode: EntryMode) {
     const normalized = content.trim();
     if (!normalized || saveState === "saving") return;
@@ -421,6 +474,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   async function removeEntry(entryId: string) {
     if (deletingEntryId) return;
     setDeletingEntryId(entryId);
+    setDeleteError("");
     try {
       await deleteEntry(entryId);
       setEntries((current) => current.filter((entry) => entry.id !== entryId));
@@ -433,8 +487,13 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       setConfirmDeleteEntryId(null);
       setServiceOnline(true);
       setMessage("记录已删除");
+      try {
+        await refresh();
+      } catch {
+        setMessage("记录已删除；列表会在下次打开时再次同步");
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "删除失败，请稍后重试");
+      setDeleteError(error instanceof Error ? error.message : "删除失败，请稍后重试");
     } finally {
       setDeletingEntryId(null);
     }
@@ -495,19 +554,10 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
                   /> : null}
                   {openConversationEntryId === entry.id ? <ReflectionConversation entryId={entry.id} onClose={() => setOpenConversationEntryId(null)} /> : null}
                   <div className="entry-actions">
-                    {confirmDeleteEntryId === entry.id ? (
-                      <div className="delete-confirm" role="alert">
-                        <span>删除后将从时间线移除，当前无法恢复。</span>
-                        <div>
-                          <button type="button" onClick={() => setConfirmDeleteEntryId(null)} disabled={deletingEntryId === entry.id}>取消</button>
-                          <button className="danger-button" type="button" onClick={() => void removeEntry(entry.id)} disabled={deletingEntryId === entry.id}>
-                            {deletingEntryId === entry.id ? "删除中" : "确认删除"}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button className="delete-trigger" type="button" onClick={() => setConfirmDeleteEntryId(entry.id)}>删除</button>
-                    )}
+                    <button className="delete-trigger" type="button" onClick={() => {
+                      setDeleteError("");
+                      setConfirmDeleteEntryId(entry.id);
+                    }}>删除</button>
                   </div>
                 </div>
               </article>)}
@@ -515,6 +565,18 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           ))}
         </section>
       </div>
+      <DeleteEntryDialog
+        entry={entryToDelete}
+        busy={Boolean(deletingEntryId)}
+        error={deleteError}
+        onCancel={() => {
+          setDeleteError("");
+          setConfirmDeleteEntryId(null);
+        }}
+        onConfirm={() => {
+          if (entryToDelete) void removeEntry(entryToDelete.id);
+        }}
+      />
     </main>
   );
 }
