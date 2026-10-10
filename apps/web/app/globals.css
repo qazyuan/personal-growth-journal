@@ -98,7 +98,7 @@ button, textarea, input { font: inherit; }
 .delete-dialog-actions button { border: 0; border-radius: 999px; padding: 8px 14px; color: #6f716a; background: rgba(87, 91, 82, .08); cursor: pointer; font-size: 12px; }
 .delete-dialog-actions .danger-button { color: white; background: #89584a; }
 .delete-dialog-actions button:disabled { opacity: .48; cursor: default; }
-.status-toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 30; max-width: calc(100vw - 40px); transform: translateX(-50%); padding: 9px 14px; border: 1px solid rgba(80, 106, 75, .14); border-radius: 999px; color: #f7f5ee; background: rgba(52, 75, 49, .92); box-shadow: 0 12px 34px rgba(48, 58, 43, .18); pointer-events: none; font-size: 12px; line-height: 1.4; }
+.status-toast { position: fixed; top: calc(env(safe-area-inset-top) + 18px); left: 50%; z-index: 30; max-width: calc(100vw - 40px); transform: translateX(-50%); padding: 9px 14px; border: 1px solid rgba(80, 106, 75, .14); border-radius: 999px; color: #f7f5ee; background: rgba(52, 75, 49, .92); box-shadow: 0 12px 34px rgba(48, 58, 43, .18); pointer-events: none; font-size: 12px; line-height: 1.4; }
 .analysis-card { margin-top: 13px; padding: 14px 16px; border: 1px solid rgba(80, 106, 75, 0.15); border-radius: 14px; background: rgba(255, 255, 255, 0.44); color: #4e554b; font-size: 13px; line-height: 1.7; }
 .analysis-card.pending { display: flex; align-items: center; gap: 9px; color: var(--muted); }
 .analysis-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #78906f; box-shadow: 0 0 0 4px rgba(120, 144, 111, .12); animation: breathe 1.5s ease-in-out infinite; }
