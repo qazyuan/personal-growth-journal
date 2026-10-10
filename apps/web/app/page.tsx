@@ -8,6 +8,8 @@ import type {
   EntrySource,
   JournalImportPreviewResponse,
   JournalImportResult,
+  MonthArchiveResponse,
+  OnThisDayResponse,
   ReflectionConversationDto,
   ReflectionMessageDto,
 } from "@journal/contracts";
@@ -18,6 +20,8 @@ import {
   deleteEntry,
   fetchAnalyses,
   fetchEntries,
+  fetchMonthArchive,
+  fetchOnThisDay,
   fetchReflectionConversation,
   importJournal,
   previewJournalImport,
@@ -53,6 +57,27 @@ function currentLocalDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function currentMonth(): string {
+  return currentLocalDate().slice(0, 7);
+}
+
+function monthTitle(month: string): string {
+  const [year, numericMonth] = month.split("-");
+  return `${year}年${Number(numericMonth)}月`;
+}
+
+function shiftMonth(month: string, amount: number): string {
+  const year = Number(month.slice(0, 4));
+  const numericMonth = Number(month.slice(5, 7));
+  const date = new Date(year, numericMonth - 1 + amount, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function localDateTitle(localDate: string): string {
+  const [year, month, day] = localDate.split("-");
+  return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
 function AnalysisCard({
@@ -457,13 +482,157 @@ function ResetPasswordScreen({ onDone, onCancel }: { onDone: () => void; onCance
   );
 }
 
+function OnThisDay({ state, loading, error }: {
+  state: OnThisDayResponse | null;
+  loading: boolean;
+  error: string;
+}) {
+  return (
+    <section className="on-this-day" aria-labelledby="on-this-day-title">
+      <div className="on-this-day-heading">
+        <div>
+          <h2 id="on-this-day-title">那年今日</h2>
+          <p>同一个日子，看看过去的自己正在经历什么。</p>
+        </div>
+        <time dateTime={currentLocalDate()}>{Number(currentLocalDate().slice(5, 7))}月{Number(currentLocalDate().slice(8, 10))}日</time>
+      </div>
+      {loading ? <p className="memory-state">正在翻找过去的今天……</p> : null}
+      {!loading && error ? <p className="memory-state error">{error}</p> : null}
+      {!loading && !error && !state?.entries.length ? (
+        <p className="memory-state">过去的今天还没有记录。时间再走远一些，这里会慢慢有内容。</p>
+      ) : null}
+      {state?.entries.map((entry) => (
+        <article className="memory-entry" key={entry.id}>
+          <div>
+            <strong>{entry.localDate.slice(0, 4)}</strong>
+            <span>{timeLabel(entry.occurredAt)}</span>
+          </div>
+          <p>{entry.content}</p>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function MonthCalendar({ month, days, selectedDate, onSelect }: {
+  month: string;
+  days: MonthArchiveResponse["days"];
+  selectedDate: string | null;
+  onSelect: (date: string | null) => void;
+}) {
+  const year = Number(month.slice(0, 4));
+  const numericMonth = Number(month.slice(5, 7));
+  const dayCount = new Date(year, numericMonth, 0).getDate();
+  const leadingBlanks = (new Date(year, numericMonth - 1, 1).getDay() + 6) % 7;
+  const counts = new Map(days.map((day) => [day.localDate, day.count]));
+  const cells = Array.from({ length: leadingBlanks + dayCount }, (_, index) => index < leadingBlanks ? null : index - leadingBlanks + 1);
+  return (
+    <div className="history-calendar" aria-label={`${monthTitle(month)}日历`}>
+      <div className="calendar-weekdays" aria-hidden="true">
+        {['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}
+      </div>
+      <div className="calendar-grid">
+        {cells.map((day, index) => {
+          if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
+          const localDate = `${month}-${String(day).padStart(2, "0")}`;
+          const count = counts.get(localDate) ?? 0;
+          return (
+            <button
+              className={selectedDate === localDate ? "selected" : count ? "has-entry" : ""}
+              type="button"
+              key={localDate}
+              onClick={() => onSelect(selectedDate === localDate ? null : localDate)}
+              aria-pressed={selectedDate === localDate}
+              aria-label={`${day}日${count ? `，${count}条记录` : "，没有记录"}`}
+            >
+              <span>{day}</span>{count ? <i>{count}</i> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HistoryArchive({ onClose }: { onClose: () => void }) {
+  const [month, setMonth] = useState(currentMonth);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [archive, setArchive] = useState<MonthArchiveResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void fetchMonthArchive(month)
+      .then((result) => { if (active) setArchive(result); })
+      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "无法读取这个月的记录"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [month]);
+
+  const visibleEntries = selectedDate
+    ? (archive?.entries ?? []).filter((entry) => entry.localDate === selectedDate)
+    : archive?.entries ?? [];
+
+  function chooseMonth(nextMonth: string) {
+    if (!nextMonth || nextMonth === month) return;
+    setLoading(true);
+    setError("");
+    setArchive(null);
+    setSelectedDate(null);
+    setMonth(nextMonth);
+  }
+
+  return (
+    <section className="history-view" aria-labelledby="history-title">
+      <div className="history-title-row">
+        <div>
+          <button className="history-back" type="button" onClick={onClose}>返回记录</button>
+          <h2 id="history-title">完整历史</h2>
+          <p>按月份和日期回到任何一段已经写下的生活。</p>
+        </div>
+        <label className="month-picker">选择月份<input type="month" value={month} onChange={(event) => chooseMonth(event.target.value)} /></label>
+      </div>
+      <div className="history-browser">
+        <aside>
+          <div className="month-switcher">
+            <button type="button" onClick={() => chooseMonth(shiftMonth(month, -1))} aria-label="上一个月">上一月</button>
+            <strong>{monthTitle(month)}</strong>
+            <button type="button" onClick={() => chooseMonth(shiftMonth(month, 1))} aria-label="下一个月">下一月</button>
+          </div>
+          <MonthCalendar month={month} days={archive?.days ?? []} selectedDate={selectedDate} onSelect={setSelectedDate} />
+          {selectedDate ? <button className="show-month" type="button" onClick={() => setSelectedDate(null)}>查看整月</button> : null}
+        </aside>
+        <div className="history-results">
+          <div className="history-results-heading">
+            <h3>{selectedDate ? localDateTitle(selectedDate) : monthTitle(month)}</h3>
+            <span>{visibleEntries.length} 条</span>
+          </div>
+          {loading ? <p className="history-state">正在读取记录……</p> : null}
+          {!loading && error ? <p className="history-state error">{error}</p> : null}
+          {!loading && !error && !visibleEntries.length ? <p className="history-state">这个时间还没有记录。</p> : null}
+          {!loading && !error ? visibleEntries.map((entry) => (
+            <article className="history-entry" key={entry.id}>
+              <time dateTime={entry.occurredAt}>{localDateTitle(entry.localDate)} · {timeLabel(entry.occurredAt)}</time>
+              <p>{entry.content}</p>
+            </article>
+          )) : null}
+          {archive?.truncated ? <p className="history-limit">这个月的记录超过 500 条，目前先显示前 500 条。</p> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Journal({ session, onChangePassword }: { session: Session; onChangePassword: () => void }) {
   const [content, setContent] = useState(() => typeof window === "undefined" ? "" : loadDraft());
   const [entries, setEntries] = useState<EntryDto[]>([]);
   const [entryTotal, setEntryTotal] = useState(0);
-  const [nextEntryOffset, setNextEntryOffset] = useState<number | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisStateDto>>({});
+  const [onThisDay, setOnThisDay] = useState<OnThisDayResponse | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(true);
+  const [memoryError, setMemoryError] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [message, setMessage] = useState("");
@@ -496,7 +665,6 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     const result = await fetchEntries({ limit: TIMELINE_PAGE_SIZE });
     setEntries(result.entries);
     setEntryTotal(result.total);
-    setNextEntryOffset(result.nextOffset);
     setServiceOnline(true);
     try {
       const analysisResult = await fetchAnalyses();
@@ -509,24 +677,17 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     }
   }, [runAnalysis]);
 
-  async function loadMoreEntries() {
-    if (nextEntryOffset === null || loadingMore) return;
-    setLoadingMore(true);
+  const loadOnThisDay = useCallback(async () => {
+    setMemoryLoading(true);
+    setMemoryError("");
     try {
-      const result = await fetchEntries({ limit: TIMELINE_PAGE_SIZE, offset: nextEntryOffset });
-      setEntries((current) => {
-        const known = new Set(current.map((entry) => entry.id));
-        return [...current, ...result.entries.filter((entry) => !known.has(entry.id))];
-      });
-      setEntryTotal(result.total);
-      setNextEntryOffset(result.nextOffset);
-      setServiceOnline(true);
+      setOnThisDay(await fetchOnThisDay(currentLocalDate()));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "无法继续读取历史记录");
+      setMemoryError(error instanceof Error ? error.message : "无法读取那年今日");
     } finally {
-      setLoadingMore(false);
+      setMemoryLoading(false);
     }
-  }
+  }, []);
 
   const flushOutbox = useCallback(async () => {
     const pending = loadOutbox();
@@ -548,6 +709,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
 
   useEffect(() => {
     const initializationTimer = window.setTimeout(() => {
+      void loadOnThisDay();
       void refresh()
         .then(flushOutbox)
         .catch((error: unknown) => {
@@ -563,7 +725,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       window.clearTimeout(initializationTimer);
       window.removeEventListener("online", retry);
     };
-  }, [flushOutbox, refresh, session.user.id]);
+  }, [flushOutbox, loadOnThisDay, refresh, session.user.id]);
 
   useEffect(() => { saveDraft(content); }, [content]);
 
@@ -670,7 +832,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         </div>
       </header>
 
-      <div className="workspace">
+      {historyOpen ? <HistoryArchive onClose={() => setHistoryOpen(false)} /> : <div className="workspace">
         <section className="composer" aria-labelledby="composer-title">
           <p className="section-label">此刻</p>
           <h2 id="composer-title">有什么想记下来的？</h2>
@@ -693,7 +855,11 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         <section className="timeline" aria-labelledby="timeline-title">
           <div className="timeline-heading">
             <div><p className="section-label">时间线</p><h2 id="timeline-title">最近的记录</h2></div>
-            <div className="timeline-heading-actions"><span>{entryTotal} 条</span><button type="button" onClick={() => setImportOpen(true)}>导入日记</button></div>
+            <div className="timeline-heading-actions">
+              <span>{entryTotal} 条</span>
+              <button type="button" onClick={() => setHistoryOpen(true)}>完整历史</button>
+              <button type="button" onClick={() => setImportOpen(true)}>导入日记</button>
+            </div>
           </div>
           {loading ? <p className="empty">正在载入记录……</p> : null}
           {!loading && entries.length === 0 ? <div className="empty-state"><span>○</span><p>第一条记录会出现在这里。</p></div> : null}
@@ -720,15 +886,9 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
               </article>)}
             </div>
           ))}
-          {nextEntryOffset !== null ? (
-            <div className="timeline-more">
-              <button type="button" onClick={() => void loadMoreEntries()} disabled={loadingMore}>
-                {loadingMore ? "正在读取……" : "继续看更早的记录"}
-              </button>
-            </div>
-          ) : null}
+          <OnThisDay state={onThisDay} loading={memoryLoading} error={memoryError} />
         </section>
-      </div>
+      </div>}
       <DeleteEntryDialog
         entry={entryToDelete}
         busy={Boolean(deletingEntryId)}
@@ -749,6 +909,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
             ? "这份 Excel 此前已经导入"
             : `已导入 ${result.importedRows} 条${result.duplicateRows ? `，跳过 ${result.duplicateRows} 条重复` : ""}`;
           setToast({ id: crypto.randomUUID(), message });
+          void loadOnThisDay();
           void refresh().catch((reason: unknown) => {
             setMessage(reason instanceof Error ? reason.message : "导入完成，列表稍后刷新");
           });
