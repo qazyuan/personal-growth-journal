@@ -85,7 +85,9 @@ button, textarea, input { font: inherit; }
 .day h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .day article { display: grid; grid-template-columns: 54px 1fr; gap: 14px; padding: 16px 0; }
 .day time { color: #93958d; font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 5px; }
-.entry-body > p { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; color: #343832; font-size: 16px; font-weight: 400; line-height: 1.9; letter-spacing: .005em; }
+.entry-body > p { margin: 0; max-width: 68ch; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(80, 106, 75, .28) transparent; padding-inline-end: 10px; white-space: pre-wrap; overflow-wrap: anywhere; color: #343832; font-size: 16px; font-weight: 400; line-height: 1.9; letter-spacing: .005em; }
+.entry-body > p::-webkit-scrollbar { width: 6px; }
+.entry-body > p::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(80, 106, 75, .28); }
 .day article small { display: block; margin-top: 8px; color: var(--leaf); font-size: 11px; }
 .entry-body { min-width: 0; }
 .entry-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
