@@ -2,6 +2,7 @@ import type {
   CreateEntryRequest,
   CreateEntryResponse,
   EntryDto,
+  EntryListResponse,
   EntryMode,
   EntrySource,
 } from "@journal/contracts";
@@ -40,14 +41,15 @@ function toDto(entry: EntryRow, content: string): EntryDto {
   };
 }
 
-async function loadEntries(auth: AuthContext): Promise<EntryDto[] | Response> {
-  const { data: entries, error } = await auth.client
+async function loadEntries(auth: AuthContext, limit: number, offset: number): Promise<EntryListResponse | Response> {
+  const { data: entries, error, count } = await auth.client
     .from("entries")
-    .select("id,current_revision,occurred_at,local_date,timezone,created_at,updated_at,source,mode,status")
+    .select("id,current_revision,occurred_at,local_date,timezone,created_at,updated_at,source,mode,status", { count: "exact" })
     .eq("user_id", auth.userId)
     .eq("status", "active")
     .order("occurred_at", { ascending: false })
-    .limit(100);
+    .order("id", { ascending: false })
+    .range(offset, offset + limit - 1);
   if (error) {
     const schemaOutdated = error.code === "42703" || error.code === "PGRST204";
     return Response.json(
@@ -55,7 +57,8 @@ async function loadEntries(auth: AuthContext): Promise<EntryDto[] | Response> {
       { status: 503 },
     );
   }
-  if (!entries?.length) return [];
+  const total = count ?? 0;
+  if (!entries?.length) return { entries: [], total, nextOffset: null };
 
   const { data: revisions, error: revisionError } = await auth.client
     .from("entry_revisions")
@@ -68,15 +71,22 @@ async function loadEntries(auth: AuthContext): Promise<EntryDto[] | Response> {
     const current = contentByEntry.get(revision.entry_id);
     if (!current || revision.revision > current.revision) contentByEntry.set(revision.entry_id, revision);
   }
-  return (entries as EntryRow[]).map((entry) => toDto(entry, contentByEntry.get(entry.id)?.content ?? ""));
+  const items = (entries as EntryRow[]).map((entry) => toDto(entry, contentByEntry.get(entry.id)?.content ?? ""));
+  const consumed = offset + items.length;
+  return { entries: items, total, nextOffset: consumed < total ? consumed : null };
 }
 
 export async function GET(request: Request) {
   const auth = await requireUser(request);
   if (auth instanceof Response) return auth;
-  const result = await loadEntries(auth);
+  const url = new URL(request.url);
+  const requestedLimit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
+  const requestedOffset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 20;
+  const offset = Number.isFinite(requestedOffset) ? Math.max(requestedOffset, 0) : 0;
+  const result = await loadEntries(auth, limit, offset);
   if (result instanceof Response) return result;
-  return Response.json({ entries: result }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json(result satisfies EntryListResponse, { headers: { "Cache-Control": "no-store" } });
 }
 
 function parseBody(value: unknown): CreateEntryRequest | null {

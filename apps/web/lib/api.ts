@@ -45,8 +45,12 @@ async function request<T>(path: string, init?: RequestInit, allowRefresh = true)
   return (await response.json()) as T;
 }
 
-export function fetchEntries(): Promise<EntryListResponse> {
-  return request<EntryListResponse>("/api/entries");
+export function fetchEntries(options: { limit?: number; offset?: number } = {}): Promise<EntryListResponse> {
+  const params = new URLSearchParams();
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.offset) params.set("offset", String(options.offset));
+  const query = params.size ? `?${params.toString()}` : "";
+  return request<EntryListResponse>(`/api/entries${query}`);
 }
 
 export function createEntry(body: CreateEntryRequest): Promise<CreateEntryResponse> {

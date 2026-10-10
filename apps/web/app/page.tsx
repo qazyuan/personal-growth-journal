@@ -29,6 +29,7 @@ import { enqueueEntry, loadOutbox, removePendingEntry } from "../lib/outbox";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 type SaveState = "idle" | "saving" | "saved" | "queued" | "error";
+const TIMELINE_PAGE_SIZE = 20;
 
 function sourceForDevice(): EntrySource {
   if (/iPhone|iPod/.test(navigator.userAgent)) return "iphone";
@@ -459,6 +460,9 @@ function ResetPasswordScreen({ onDone, onCancel }: { onDone: () => void; onCance
 function Journal({ session, onChangePassword }: { session: Session; onChangePassword: () => void }) {
   const [content, setContent] = useState(() => typeof window === "undefined" ? "" : loadDraft());
   const [entries, setEntries] = useState<EntryDto[]>([]);
+  const [entryTotal, setEntryTotal] = useState(0);
+  const [nextEntryOffset, setNextEntryOffset] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisStateDto>>({});
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -489,8 +493,10 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   }, []);
 
   const refresh = useCallback(async () => {
-    const result = await fetchEntries();
+    const result = await fetchEntries({ limit: TIMELINE_PAGE_SIZE });
     setEntries(result.entries);
+    setEntryTotal(result.total);
+    setNextEntryOffset(result.nextOffset);
     setServiceOnline(true);
     try {
       const analysisResult = await fetchAnalyses();
@@ -502,6 +508,25 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       setMessage(error instanceof Error ? error.message : "AI 分析状态暂时无法读取");
     }
   }, [runAnalysis]);
+
+  async function loadMoreEntries() {
+    if (nextEntryOffset === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await fetchEntries({ limit: TIMELINE_PAGE_SIZE, offset: nextEntryOffset });
+      setEntries((current) => {
+        const known = new Set(current.map((entry) => entry.id));
+        return [...current, ...result.entries.filter((entry) => !known.has(entry.id))];
+      });
+      setEntryTotal(result.total);
+      setNextEntryOffset(result.nextOffset);
+      setServiceOnline(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "无法继续读取历史记录");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const flushOutbox = useCallback(async () => {
     const pending = loadOutbox();
@@ -589,6 +614,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
       removePendingEntry(request.operationId);
       setPendingCount(loadOutbox().length);
       setEntries((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      setEntryTotal((current) => current + 1);
       setServiceOnline(true);
       setSaveState("saved");
       setMessage(request.mode === "record_and_analyze" ? "记录已保存，正在生成回望" : "记录已保存");
@@ -609,6 +635,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     try {
       await deleteEntry(entryId);
       setEntries((current) => current.filter((entry) => entry.id !== entryId));
+      setEntryTotal((current) => Math.max(0, current - 1));
       setAnalyses((current) => {
         const next = { ...current };
         delete next[entryId];
@@ -666,7 +693,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         <section className="timeline" aria-labelledby="timeline-title">
           <div className="timeline-heading">
             <div><p className="section-label">时间线</p><h2 id="timeline-title">最近的记录</h2></div>
-            <div className="timeline-heading-actions"><span>{entries.length} 条</span><button type="button" onClick={() => setImportOpen(true)}>导入日记</button></div>
+            <div className="timeline-heading-actions"><span>{entryTotal} 条</span><button type="button" onClick={() => setImportOpen(true)}>导入日记</button></div>
           </div>
           {loading ? <p className="empty">正在载入记录……</p> : null}
           {!loading && entries.length === 0 ? <div className="empty-state"><span>○</span><p>第一条记录会出现在这里。</p></div> : null}
@@ -693,6 +720,13 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
               </article>)}
             </div>
           ))}
+          {nextEntryOffset !== null ? (
+            <div className="timeline-more">
+              <button type="button" onClick={() => void loadMoreEntries()} disabled={loadingMore}>
+                {loadingMore ? "正在读取……" : "继续看更早的记录"}
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
       <DeleteEntryDialog

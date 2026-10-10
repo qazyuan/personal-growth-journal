@@ -37,6 +37,8 @@ export interface CreateEntryResponse extends EntryDto {
 
 export interface EntryListResponse {
   entries: EntryDto[];
+  total: number;
+  nextOffset: number | null;
 }
 
 export interface DeleteEntryResponse {

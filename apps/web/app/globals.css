@@ -93,6 +93,10 @@ button, textarea, input { font: inherit; }
 .entry-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .delete-trigger { border: 0; padding: 5px 0; color: #94958e; background: transparent; cursor: pointer; font-size: 11px; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
 .delete-trigger:hover { color: #89584a; text-decoration-color: currentColor; }
+.timeline-more { display: flex; justify-content: center; padding: 18px 0 4px; border-top: 1px solid var(--line); }
+.timeline-more button { border: 1px solid rgba(80, 106, 75, .22); border-radius: 999px; padding: 8px 14px; color: var(--leaf-dark); background: rgba(255, 255, 255, .42); cursor: pointer; font-size: 12px; }
+.timeline-more button:hover:not(:disabled) { background: rgba(80, 106, 75, .08); }
+.timeline-more button:disabled { opacity: .48; cursor: default; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(37, 40, 35, .28); backdrop-filter: blur(4px); }
 .delete-dialog { width: min(420px, 100%); padding: 25px; border: 1px solid rgba(137, 88, 74, .18); border-radius: 18px; background: #fbf8f1; box-shadow: 0 26px 80px rgba(48, 42, 34, .22); }
 .delete-dialog h2 { margin: 0; color: #363832; font-size: 20px; line-height: 1.35; font-weight: 650; letter-spacing: -.025em; }
