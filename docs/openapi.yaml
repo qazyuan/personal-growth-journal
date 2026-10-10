@@ -30,6 +30,21 @@ paths:
       responses:
         "200":
           description: Analysis state map keyed by entry ID
+  /api/entries/{id}:
+    delete:
+      summary: Soft-delete an entry and remove it from the active timeline
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Entry marked as deleted
+        "404":
+          description: Entry not found or not owned by the current user
+        "503":
+          description: Delete migration required
   /api/entries/{id}/analysis:
     post:
       summary: Run or retry the requested analysis for one entry

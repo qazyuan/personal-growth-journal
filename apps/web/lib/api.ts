@@ -3,6 +3,7 @@ import type {
   AnalysisStateDto,
   CreateEntryRequest,
   CreateEntryResponse,
+  DeleteEntryResponse,
   EntryListResponse,
   ReflectionConversationDto,
   SendReflectionMessageRequest,
@@ -49,6 +50,10 @@ export function fetchEntries(): Promise<EntryListResponse> {
 
 export function createEntry(body: CreateEntryRequest): Promise<CreateEntryResponse> {
   return request<CreateEntryResponse>("/api/entries", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function deleteEntry(entryId: string): Promise<DeleteEntryResponse> {
+  return request<DeleteEntryResponse>(`/api/entries/${entryId}`, { method: "DELETE" });
 }
 
 export function fetchAnalyses(): Promise<AnalysisListResponse> {

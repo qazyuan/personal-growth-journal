@@ -39,6 +39,11 @@ export interface EntryListResponse {
   entries: EntryDto[];
 }
 
+export interface DeleteEntryResponse {
+  id: string;
+  status: "deleted";
+}
+
 export type AnalysisStatus = "queued" | "running" | "completed" | "failed";
 
 export interface ReflectionObservation {

@@ -13,6 +13,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createEntry,
+  deleteEntry,
   fetchAnalyses,
   fetchEntries,
   fetchReflectionConversation,
@@ -295,6 +296,8 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [pendingCount, setPendingCount] = useState(0);
   const [openConversationEntryId, setOpenConversationEntryId] = useState<string | null>(null);
   const [savingMode, setSavingMode] = useState<EntryMode | null>(null);
+  const [confirmDeleteEntryId, setConfirmDeleteEntryId] = useState<string | null>(null);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -415,6 +418,28 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     }
   }
 
+  async function removeEntry(entryId: string) {
+    if (deletingEntryId) return;
+    setDeletingEntryId(entryId);
+    try {
+      await deleteEntry(entryId);
+      setEntries((current) => current.filter((entry) => entry.id !== entryId));
+      setAnalyses((current) => {
+        const next = { ...current };
+        delete next[entryId];
+        return next;
+      });
+      if (openConversationEntryId === entryId) setOpenConversationEntryId(null);
+      setConfirmDeleteEntryId(null);
+      setServiceOnline(true);
+      setMessage("记录已删除");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "删除失败，请稍后重试");
+    } finally {
+      setDeletingEntryId(null);
+    }
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && event.metaKey) { event.preventDefault(); void submit("record_only"); }
   }
@@ -469,6 +494,21 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
                     conversationOpen={openConversationEntryId === entry.id}
                   /> : null}
                   {openConversationEntryId === entry.id ? <ReflectionConversation entryId={entry.id} onClose={() => setOpenConversationEntryId(null)} /> : null}
+                  <div className="entry-actions">
+                    {confirmDeleteEntryId === entry.id ? (
+                      <div className="delete-confirm" role="alert">
+                        <span>删除后将从时间线移除，当前无法恢复。</span>
+                        <div>
+                          <button type="button" onClick={() => setConfirmDeleteEntryId(null)} disabled={deletingEntryId === entry.id}>取消</button>
+                          <button className="danger-button" type="button" onClick={() => void removeEntry(entry.id)} disabled={deletingEntryId === entry.id}>
+                            {deletingEntryId === entry.id ? "删除中" : "确认删除"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="delete-trigger" type="button" onClick={() => setConfirmDeleteEntryId(entry.id)}>删除</button>
+                    )}
+                  </div>
                 </div>
               </article>)}
             </div>

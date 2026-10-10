@@ -16,6 +16,7 @@
 - 即时回望下可以展开多轮对话；默认上下文仅包含当前日记、即时回望和本次对话；
 - AI 失败不回滚原始记录，页面可以稍后重试；
 - RLS 限制每个用户只能访问自己的数据。
+- 记录删除采用软删除：立即从时间线移除，但不会直接物理销毁原文。
 
 当前即时分析支持智谱、DeepSeek 和其他 OpenAI Chat Completions 兼容接口。业务层只依赖统一适配器，后续替换模型不需要改记录或结果数据模型。
 
@@ -63,6 +64,12 @@
 
    ```text
    supabase/migrations/202610090004_reflection_conversations.sql
+   ```
+
+   为启用记录删除，还需要继续执行：
+
+   ```text
+   supabase/migrations/202610100005_soft_delete_entries.sql
    ```
 
 4. 在 `apps/web/.env.local` 中配置服务端 AI 环境变量。以 DeepSeek 为例：
