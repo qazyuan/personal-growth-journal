@@ -66,8 +66,8 @@ button, textarea, input { font: inherit; }
 .save-message { min-height: 20px; color: var(--muted); font-size: 12px; }
 .save-message.saved { color: var(--leaf); }
 .save-message.error { color: #9a4e42; }
-.save-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }
-.composer .primary-button, .composer .secondary-button { border-radius: 999px; padding: 10px 17px; cursor: pointer; transition: transform 150ms ease, opacity 150ms ease, background 150ms ease; }
+.save-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 0 auto; }
+.composer .primary-button, .composer .secondary-button { min-height: 34px; border-radius: 999px; padding: 7px 13px; cursor: pointer; font-size: 12px; transition: transform 150ms ease, opacity 150ms ease, background 150ms ease; }
 .composer .primary-button { border: 1px solid var(--leaf-dark); color: white; background: var(--leaf-dark); }
 .composer .secondary-button { border: 1px solid rgba(80, 106, 75, .28); color: var(--leaf-dark); background: rgba(255, 255, 255, .5); }
 .composer .primary-button:hover:not(:disabled), .composer .secondary-button:hover:not(:disabled) { transform: translateY(-1px); }
@@ -149,9 +149,8 @@ button, textarea, input { font: inherit; }
   .workspace { grid-template-columns: 1fr; gap: 34px; padding-top: 28px; }
   .composer { position: static; padding: 24px 20px; }
   .composer textarea { min-height: 150px; }
-  .composer-footer { align-items: flex-start; flex-direction: column; }
-  .save-actions { width: 100%; }
-  .save-actions button { flex: 1; }
+  .composer-footer { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .save-actions { align-self: flex-end; width: auto; }
   .topbar { align-items: center; }
   .eyebrow { display: none; }
   .sync-mark { font-size: 11px; }
