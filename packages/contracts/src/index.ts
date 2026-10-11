@@ -53,6 +53,59 @@ export interface ArchiveResponse {
   truncated: boolean;
 }
 
+export type PeriodicReviewKind = "half_year" | "custom" | "year";
+export type PeriodicReviewStatus = "running" | "completed" | "failed";
+
+export interface PeriodicReviewEvidence {
+  entryId: string;
+  localDate: string;
+  quote: string;
+}
+
+export interface PeriodicReviewTheme {
+  title: string;
+  observation: string;
+  evidence: PeriodicReviewEvidence[];
+}
+
+export interface PeriodicReviewTurningPoint {
+  title: string;
+  observation: string;
+  evidence: PeriodicReviewEvidence;
+}
+
+export interface PeriodicReviewResult {
+  overview: string;
+  themes: PeriodicReviewTheme[];
+  turningPoints: PeriodicReviewTurningPoint[];
+  changes: string[];
+  unresolved: string[];
+  question?: string;
+}
+
+export interface PeriodicReviewDto {
+  id: string;
+  kind: PeriodicReviewKind;
+  startDate: string;
+  endDate: string;
+  entryCount: number;
+  status: PeriodicReviewStatus;
+  result?: PeriodicReviewResult;
+  createdAt: string;
+  updatedAt: string;
+  message?: string;
+}
+
+export interface PeriodicReviewListResponse {
+  reviews: PeriodicReviewDto[];
+}
+
+export interface GeneratePeriodicReviewRequest {
+  kind: PeriodicReviewKind;
+  startDate: string;
+  endDate: string;
+}
+
 export interface DeleteEntryResponse {
   id: string;
   status: "deleted";
