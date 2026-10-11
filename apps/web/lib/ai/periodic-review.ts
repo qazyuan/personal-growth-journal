@@ -6,7 +6,7 @@ import type {
 } from "@journal/contracts";
 import { AiProviderError, completeJson } from "./provider";
 
-export const PERIODIC_REVIEW_PROMPT_VERSION = "periodic-review-v1";
+export const PERIODIC_REVIEW_PROMPT_VERSION = "periodic-review-v2";
 
 export type PeriodicReviewSourceEntry = {
   id: string;
@@ -19,6 +19,8 @@ type ChunkSummary = {
   themes: PeriodicReviewTheme[];
   turningPoints: PeriodicReviewTurningPoint[];
 };
+
+type EvidenceRegistry = Map<string, PeriodicReviewEvidence>;
 
 const CHUNK_CHARACTER_LIMIT = 16_000;
 const ENTRY_CHARACTER_LIMIT = 9_000;
@@ -46,8 +48,8 @@ const FINAL_SYSTEM_PROMPT = `你是“来时路”的长期回望助手。请把
 只输出一个 JSON 对象，格式严格如下：
 {
   "overview":"这段时间的整体脉络",
-  "themes":[{"title":"反复出现的主题","observation":"具体观察","evidence":[{"entryId":"原始日记ID","localDate":"YYYY-MM-DD","quote":"原文短句"}]}],
-  "turningPoints":[{"title":"重要转折","observation":"转折前后发生了什么","evidence":{"entryId":"原始日记ID","localDate":"YYYY-MM-DD","quote":"原文短句"}}],
+  "themes":[{"title":"反复出现的主题","observation":"具体观察","evidence":[{"evidenceId":"e0"}]}],
+  "turningPoints":[{"title":"重要转折","observation":"转折前后发生了什么","evidence":{"evidenceId":"e1"}}],
   "changes":["已经发生的变化"],
   "unresolved":["仍在反复出现或尚未走完的问题"],
   "question":"一个可以不回答的开放问题，或 null"
@@ -55,7 +57,7 @@ const FINAL_SYSTEM_PROMPT = `你是“来时路”的长期回望助手。请把
 
 规则：
 1. overview 为 120 到 300 个中文字符；给 2 到 5 个主题、0 到 4 个转折点、1 到 4 条变化、0 到 4 个未完成问题。
-2. 所有 evidence 必须原样保留阶段摘要中的 entryId、localDate 和 quote，不能改写或编造。
+2. 所有 evidence 只能填写输入中已有的 evidenceId；不要输出 entryId、localDate 或 quote，不要编造 evidenceId。
 3. 只描述材料中能观察到的模式与变化，不猜测人格、动机、病因和未来，不做医学或心理诊断。
 4. 不给建议，不使用“你应该”“你必须”“建议你”。
 5. question 最多一个，温和、开放、可不回答；没有合适问题时返回 null。
@@ -73,19 +75,57 @@ function stringField(value: unknown, maxLength: number): string {
   return text;
 }
 
-function evidenceField(value: unknown, sourceById: Map<string, PeriodicReviewSourceEntry>): PeriodicReviewEvidence {
+function canonicalQuote(source: string, quote: string): string | null {
+  const normalized: string[] = [];
+  const sourceIndexes: number[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]!;
+    if (/^[\p{P}\p{S}\s]$/u.test(character)) continue;
+    normalized.push(character.toLocaleLowerCase());
+    sourceIndexes.push(index);
+  }
+  const normalizedQuote = [...quote]
+    .filter((character) => !/^[\p{P}\p{S}\s]$/u.test(character))
+    .join("")
+    .toLocaleLowerCase();
+  if (!normalizedQuote) return null;
+  const normalizedSource = normalized.join("");
+  const matchIndex = normalizedSource.indexOf(normalizedQuote);
+  if (matchIndex < 0) return null;
+  const start = sourceIndexes[matchIndex];
+  const end = sourceIndexes[matchIndex + normalizedQuote.length - 1];
+  if (start === undefined || end === undefined) return null;
+  return source.slice(start, end + 1).trim();
+}
+
+function evidenceField(
+  value: unknown,
+  sourceById: Map<string, PeriodicReviewSourceEntry>,
+  evidenceRegistry?: EvidenceRegistry,
+): PeriodicReviewEvidence {
   const record = asRecord(value);
+  if (evidenceRegistry) {
+    const evidenceId = typeof record?.evidenceId === "string" ? record.evidenceId : "";
+    const registered = evidenceRegistry.get(evidenceId);
+    if (!registered) throw new AiProviderError("invalid_response", "AI 阶段回顾引用了不存在的证据编号");
+    return registered;
+  }
   const entryId = typeof record?.entryId === "string" ? record.entryId : "";
   const localDate = typeof record?.localDate === "string" ? record.localDate : "";
   const quote = typeof record?.quote === "string" ? record.quote.trim() : "";
   const source = sourceById.get(entryId);
-  if (!source || source.localDate !== localDate || !quote || quote.length > 120 || !source.content.includes(quote)) {
+  const groundedQuote = source && quote.length <= 120 ? canonicalQuote(source.content, quote) : null;
+  if (!source || source.localDate !== localDate || !groundedQuote) {
     throw new AiProviderError("invalid_response", "AI 阶段回顾引用了不存在的日记原文");
   }
-  return { entryId, localDate, quote };
+  return { entryId, localDate, quote: groundedQuote };
 }
 
-function themeField(value: unknown, sourceById: Map<string, PeriodicReviewSourceEntry>): PeriodicReviewTheme {
+function themeField(
+  value: unknown,
+  sourceById: Map<string, PeriodicReviewSourceEntry>,
+  evidenceRegistry?: EvidenceRegistry,
+): PeriodicReviewTheme {
   const record = asRecord(value);
   if (!record || !Array.isArray(record.evidence) || record.evidence.length < 1 || record.evidence.length > 3) {
     throw new AiProviderError("invalid_response", "AI 阶段回顾主题格式无效");
@@ -93,17 +133,21 @@ function themeField(value: unknown, sourceById: Map<string, PeriodicReviewSource
   return {
     title: stringField(record.title, 40),
     observation: stringField(record.observation, 240),
-    evidence: record.evidence.map((item) => evidenceField(item, sourceById)),
+    evidence: record.evidence.map((item) => evidenceField(item, sourceById, evidenceRegistry)),
   };
 }
 
-function turningPointField(value: unknown, sourceById: Map<string, PeriodicReviewSourceEntry>): PeriodicReviewTurningPoint {
+function turningPointField(
+  value: unknown,
+  sourceById: Map<string, PeriodicReviewSourceEntry>,
+  evidenceRegistry?: EvidenceRegistry,
+): PeriodicReviewTurningPoint {
   const record = asRecord(value);
   if (!record) throw new AiProviderError("invalid_response", "AI 阶段回顾转折格式无效");
   return {
     title: stringField(record.title, 40),
     observation: stringField(record.observation, 240),
-    evidence: evidenceField(record.evidence, sourceById),
+    evidence: evidenceField(record.evidence, sourceById, evidenceRegistry),
   };
 }
 
@@ -120,7 +164,11 @@ function parseChunkSummary(value: unknown, sourceById: Map<string, PeriodicRevie
   };
 }
 
-export function parsePeriodicReview(value: unknown, entries: PeriodicReviewSourceEntry[]): PeriodicReviewResult {
+export function parsePeriodicReview(
+  value: unknown,
+  entries: PeriodicReviewSourceEntry[],
+  evidenceRegistry?: EvidenceRegistry,
+): PeriodicReviewResult {
   const root = asRecord(value);
   const sourceById = new Map(entries.map((entry) => [entry.id, entry]));
   if (!root || !Array.isArray(root.themes) || root.themes.length < 2 || root.themes.length > 5
@@ -134,8 +182,8 @@ export function parsePeriodicReview(value: unknown, entries: PeriodicReviewSourc
     : stringField(root.question, 160);
   return {
     overview: stringField(root.overview, 900),
-    themes: root.themes.map((item) => themeField(item, sourceById)),
-    turningPoints: root.turningPoints.map((item) => turningPointField(item, sourceById)),
+    themes: root.themes.map((item) => themeField(item, sourceById, evidenceRegistry)),
+    turningPoints: root.turningPoints.map((item) => turningPointField(item, sourceById, evidenceRegistry)),
     changes: root.changes.map((item) => stringField(item, 220)),
     unresolved: root.unresolved.map((item) => stringField(item, 220)),
     ...(question ? { question } : {}),
@@ -181,6 +229,31 @@ async function summarizeWithConcurrency(chunks: PeriodicReviewSourceEntry[][]): 
   return summaries;
 }
 
+function indexEvidence(summaries: ChunkSummary[]): { indexedSummaries: unknown[]; evidenceRegistry: EvidenceRegistry } {
+  const evidenceRegistry: EvidenceRegistry = new Map();
+  let nextEvidenceIndex = 0;
+  const register = (evidence: PeriodicReviewEvidence) => {
+    const evidenceId = `e${nextEvidenceIndex}`;
+    nextEvidenceIndex += 1;
+    evidenceRegistry.set(evidenceId, evidence);
+    return { evidenceId };
+  };
+  const indexedSummaries = summaries.map((summary) => ({
+    summary: summary.summary,
+    themes: summary.themes.map((theme) => ({
+      title: theme.title,
+      observation: theme.observation,
+      evidence: theme.evidence.map(register),
+    })),
+    turningPoints: summary.turningPoints.map((point) => ({
+      title: point.title,
+      observation: point.observation,
+      evidence: register(point.evidence),
+    })),
+  }));
+  return { indexedSummaries, evidenceRegistry };
+}
+
 export async function generatePeriodicReview(entries: PeriodicReviewSourceEntry[]): Promise<{
   result: PeriodicReviewResult;
   provider: string;
@@ -190,12 +263,13 @@ export async function generatePeriodicReview(entries: PeriodicReviewSourceEntry[
   if (!entries.length) throw new AiProviderError("invalid_response", "这段时间还没有可以回顾的日记");
   const chunks = makeChunks(entries);
   const summaries = await summarizeWithConcurrency(chunks);
-  const completion = await completeJson(FINAL_SYSTEM_PROMPT, JSON.stringify({ summaries }), {
+  const { indexedSummaries, evidenceRegistry } = indexEvidence(summaries);
+  const completion = await completeJson(FINAL_SYSTEM_PROMPT, JSON.stringify({ summaries: indexedSummaries }), {
     maxTokens: 1800,
     timeoutMs: 60_000,
   });
   return {
-    result: parsePeriodicReview(completion.value, entries),
+    result: parsePeriodicReview(completion.value, entries, evidenceRegistry),
     provider: completion.provider,
     model: completion.model,
     promptVersion: PERIODIC_REVIEW_PROMPT_VERSION,

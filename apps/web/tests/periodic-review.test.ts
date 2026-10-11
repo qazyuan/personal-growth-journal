@@ -37,6 +37,34 @@ test("accepts a period review whose evidence is grounded in source entries", () 
   assert.equal(result.turningPoints[0]!.evidence.entryId, "entry-b");
 });
 
+test("restores punctuation variants to the exact source quote", () => {
+  const punctuationVariant = structuredClone(valid);
+  punctuationVariant.themes[0]!.evidence[0]!.quote = "虽然紧张, 但我还是走进去了";
+  const result = parsePeriodicReview(punctuationVariant, entries);
+  assert.equal(result.themes[0]!.evidence[0]!.quote, "虽然紧张，但我还是走进去了");
+});
+
+test("resolves final review evidence from server-issued IDs", () => {
+  const indexed = structuredClone(valid) as unknown as Record<string, unknown>;
+  const themes = indexed.themes as Array<Record<string, unknown>>;
+  const turningPoints = indexed.turningPoints as Array<Record<string, unknown>>;
+  themes[0]!.evidence = [{ evidenceId: "e0" }];
+  themes[1]!.evidence = [{ evidenceId: "e1" }];
+  turningPoints[0]!.evidence = { evidenceId: "e2" };
+  const result = parsePeriodicReview(indexed, entries, new Map([
+    ["e0", { entryId: "entry-a", localDate: "2026-05-03", quote: "虽然紧张，但我还是走进去了" }],
+    ["e1", { entryId: "entry-b", localDate: "2026-08-19", quote: "我没有马上责怪自己" }],
+    ["e2", { entryId: "entry-b", localDate: "2026-08-19", quote: "停下来听听心里的声音" }],
+  ]));
+  assert.equal(result.themes[0]!.evidence[0]!.quote, "虽然紧张，但我还是走进去了");
+});
+
+test("rejects final review evidence IDs not issued by the server", () => {
+  const indexed = structuredClone(valid);
+  indexed.themes[0]!.evidence = [{ evidenceId: "invented" }] as never;
+  assert.throws(() => parsePeriodicReview(indexed, entries, new Map()), /不存在的证据编号/);
+});
+
 test("rejects a period review with fabricated evidence", () => {
   const fabricated = structuredClone(valid);
   fabricated.themes[0]!.evidence[0]!.quote = "我已经完全不紧张了";

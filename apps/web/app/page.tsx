@@ -594,7 +594,7 @@ function PeriodicReviewWorkspace({
       </div>
 
       {loading ? <p className="periodic-state">正在找回已经生成的回顾……</p> : null}
-      {!loading && (generating || review?.status === "running") ? (
+      {!loading && !error && (generating || review?.status === "running") ? (
         <div className="periodic-working" role="status">
           <span className="analysis-dot" />
           <div><strong>正在整理这半年的来时路</strong><p>会分段阅读日记并核对原文，可能需要一两分钟，请暂时不要关闭页面。</p></div>
