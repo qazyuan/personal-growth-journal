@@ -10,6 +10,8 @@ import type {
   JournalImportPreviewResponse,
   JournalImportResult,
   OnThisDayResponse,
+  PeriodicReviewDto,
+  PeriodicReviewEvidence,
   ReflectionConversationDto,
   ReflectionMessageDto,
 } from "@journal/contracts";
@@ -22,7 +24,9 @@ import {
   fetchEntries,
   fetchArchive,
   fetchOnThisDay,
+  fetchPeriodicReviews,
   fetchReflectionConversation,
+  generatePeriodicReview,
   importJournal,
   previewJournalImport,
   requestAnalysis,
@@ -46,10 +50,13 @@ function timeLabel(value: string): string {
 }
 
 function currentLocalDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  return localDateValue(new Date());
+}
+
+function localDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -60,6 +67,14 @@ function currentMonth(): string {
 function localDateTitle(localDate: string): string {
   const [year, month, day] = localDate.split("-");
   return `${year}年${Number(month)}月${Number(day)}日`;
+}
+
+function recentHalfYearRange(): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date(end.getFullYear(), end.getMonth() - 6, 1);
+  const lastDay = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+  start.setDate(Math.min(end.getDate(), lastDay));
+  return { startDate: localDateValue(start), endDate: localDateValue(end) };
 }
 
 function AnalysisCard({
@@ -496,6 +511,155 @@ function OnThisDay({ state, loading, error }: {
   );
 }
 
+function PeriodicReviewWorkspace({
+  onClose,
+  onOpenEntry,
+}: {
+  onClose: () => void;
+  onOpenEntry: (localDate: string) => void;
+}) {
+  const [review, setReview] = useState<PeriodicReviewDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const range = recentHalfYearRange();
+
+  const loadReview = useCallback(async () => {
+    const response = await fetchPeriodicReviews();
+    const latest = response.reviews.find((item) => item.kind === "half_year") ?? null;
+    setReview(latest);
+    return latest;
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void loadReview()
+        .catch((reason: unknown) => {
+          if (active) setError(reason instanceof Error ? reason.message : "无法读取最近半年的回顾");
+        })
+        .finally(() => { if (active) setLoading(false); });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [loadReview]);
+
+  useEffect(() => {
+    if (review?.status !== "running") return;
+    const timer = window.setInterval(() => {
+      void loadReview().catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [loadReview, review?.status]);
+
+  async function generate() {
+    if (generating) return;
+    setGenerating(true);
+    setError("");
+    try {
+      setReview(await generatePeriodicReview({ kind: "half_year", ...range }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "最近半年回顾暂时无法生成");
+      await loadReview().catch(() => undefined);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const isCurrentRange = review?.startDate === range.startDate && review.endDate === range.endDate;
+  const result = review?.status === "completed" ? review.result : undefined;
+
+  function EvidenceLink({ evidence }: { evidence: PeriodicReviewEvidence }) {
+    return (
+      <button type="button" className="periodic-evidence" onClick={() => onOpenEntry(evidence.localDate)}>
+        <time dateTime={evidence.localDate}>{localDateTitle(evidence.localDate)}</time>
+        <span>“{evidence.quote}”</span>
+        <i aria-hidden="true">查看原文</i>
+      </button>
+    );
+  }
+
+  return (
+    <section className="periodic-review-view" aria-labelledby="periodic-review-title">
+      <div className="periodic-review-title-row">
+        <div>
+          <button className="history-back" type="button" onClick={onClose}>返回记录</button>
+          <p className="section-label">一路回望</p>
+          <h2 id="periodic-review-title">最近半年</h2>
+          <p>{localDateTitle(review?.startDate ?? range.startDate)} 至 {localDateTitle(review?.endDate ?? range.endDate)}</p>
+        </div>
+        {result && !isCurrentRange ? <button className="periodic-generate secondary" type="button" onClick={() => void generate()} disabled={generating}>更新到今天</button> : null}
+      </div>
+
+      {loading ? <p className="periodic-state">正在找回已经生成的回顾……</p> : null}
+      {!loading && (generating || review?.status === "running") ? (
+        <div className="periodic-working" role="status">
+          <span className="analysis-dot" />
+          <div><strong>正在整理这半年的来时路</strong><p>会分段阅读日记并核对原文，可能需要一两分钟，请暂时不要关闭页面。</p></div>
+        </div>
+      ) : null}
+      {!loading && error ? <div className="periodic-state error"><p>{error}</p><button type="button" onClick={() => void generate()}>重试</button></div> : null}
+      {!loading && !error && review?.status === "failed" ? (
+        <div className="periodic-state error"><p>{review.message ?? "这次回顾没有完成，可以重新生成。"}</p><button type="button" onClick={() => void generate()}>重新生成</button></div>
+      ) : null}
+      {!loading && !error && !review ? (
+        <div className="periodic-empty">
+          <p>把最近半年的记录放在一起，看看反复出现的主题、重要转折与已经发生的变化。</p>
+          <small>回顾只依据你的日记，并保留可以点回原文的引用。</small>
+          <button className="periodic-generate" type="button" onClick={() => void generate()}>生成最近半年回顾</button>
+        </div>
+      ) : null}
+
+      {result ? (
+        <article className="periodic-review-body">
+          <header>
+            <span>{review?.entryCount ?? 0} 篇日记</span>
+            <p>{result.overview}</p>
+          </header>
+
+          <section className="periodic-review-section">
+            <p className="section-label">反复出现的主题</p>
+            {result.themes.map((theme, index) => (
+              <div className="periodic-theme" key={`${theme.title}-${index}`}>
+                <h3>{theme.title}</h3>
+                <p>{theme.observation}</p>
+                <div className="periodic-evidence-list">{theme.evidence.map((evidence) => <EvidenceLink evidence={evidence} key={`${evidence.entryId}-${evidence.quote}`} />)}</div>
+              </div>
+            ))}
+          </section>
+
+          {result.turningPoints.length ? <section className="periodic-review-section">
+            <p className="section-label">重要的转折</p>
+            {result.turningPoints.map((point, index) => (
+              <div className="periodic-theme" key={`${point.title}-${index}`}>
+                <h3>{point.title}</h3>
+                <p>{point.observation}</p>
+                <div className="periodic-evidence-list"><EvidenceLink evidence={point.evidence} /></div>
+              </div>
+            ))}
+          </section> : null}
+
+          <div className="periodic-review-columns">
+            <section className="periodic-review-section compact">
+              <p className="section-label">已经发生的变化</p>
+              <ul>{result.changes.map((item) => <li key={item}>{item}</li>)}</ul>
+            </section>
+            {result.unresolved.length ? <section className="periodic-review-section compact">
+              <p className="section-label">还在路上的事</p>
+              <ul>{result.unresolved.map((item) => <li key={item}>{item}</li>)}</ul>
+            </section> : null}
+          </div>
+
+          {result.question ? <blockquote className="periodic-question"><span>留给此刻的一个问题</span>{result.question}</blockquote> : null}
+          <p className="periodic-disclaimer">这是一份依据日记原文生成的阶段观察，不是心理诊断。</p>
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
 function HistoryArchive({
   analyses,
   openConversationEntryId,
@@ -505,6 +669,7 @@ function HistoryArchive({
   onContinue,
   onDelete,
   onRetryAnalysis,
+  initialDate,
 }: {
   analyses: Record<string, AnalysisStateDto>;
   openConversationEntryId: string | null;
@@ -514,9 +679,10 @@ function HistoryArchive({
   onContinue: (entryId: string) => void;
   onDelete: (entry: EntryDto) => void;
   onRetryAnalysis: (entryId: string) => void;
+  initialDate?: string;
 }) {
-  const [rangeStart, setRangeStart] = useState(() => `${currentMonth()}-01`);
-  const [rangeEnd, setRangeEnd] = useState(currentLocalDate);
+  const [rangeStart, setRangeStart] = useState(() => initialDate ?? `${currentMonth()}-01`);
+  const [rangeEnd, setRangeEnd] = useState(() => initialDate ?? currentLocalDate());
   const [archive, setArchive] = useState<ArchiveResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -605,6 +771,8 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [memoryLoading, setMemoryLoading] = useState(true);
   const [memoryError, setMemoryError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyInitialDate, setHistoryInitialDate] = useState<string | undefined>();
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -793,12 +961,23 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         </div>
       </header>
 
-      {historyOpen ? <HistoryArchive
+      {reviewOpen ? <PeriodicReviewWorkspace
+        onClose={() => setReviewOpen(false)}
+        onOpenEntry={(localDate) => {
+          setHistoryInitialDate(localDate);
+          setReviewOpen(false);
+          setHistoryOpen(true);
+        }}
+      /> : historyOpen ? <HistoryArchive
         analyses={analyses}
+        initialDate={historyInitialDate}
         openConversationEntryId={openConversationEntryId}
         revision={historyRevision}
         total={entryTotal}
-        onClose={() => setHistoryOpen(false)}
+        onClose={() => {
+          setHistoryOpen(false);
+          setHistoryInitialDate(undefined);
+        }}
         onContinue={(entryId) => setOpenConversationEntryId((current) => current === entryId ? null : entryId)}
         onDelete={(entry) => {
           setDeleteError("");
@@ -830,7 +1009,11 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
             <div><p className="section-label">回看</p><p className="home-review-intro">记录此刻，也看看一路走来的自己。</p></div>
             <div className="timeline-heading-actions">
               <span>{entryTotal} 条</span>
-              <button type="button" onClick={() => setHistoryOpen(true)}>完整历史</button>
+              <button type="button" onClick={() => setReviewOpen(true)}>半年回顾</button>
+              <button type="button" onClick={() => {
+                setHistoryInitialDate(undefined);
+                setHistoryOpen(true);
+              }}>完整历史</button>
               <button type="button" onClick={() => setImportOpen(true)}>导入日记</button>
             </div>
           </div>

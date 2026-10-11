@@ -5,10 +5,13 @@ import type {
   CreateEntryResponse,
   DeleteEntryResponse,
   EntryListResponse,
+  GeneratePeriodicReviewRequest,
   JournalImportPreviewResponse,
   JournalImportResult,
   ArchiveResponse,
   OnThisDayResponse,
+  PeriodicReviewDto,
+  PeriodicReviewListResponse,
   ReflectionConversationDto,
   SendReflectionMessageRequest,
 } from "@journal/contracts";
@@ -62,6 +65,14 @@ export function fetchOnThisDay(localDate: string): Promise<OnThisDayResponse> {
 export function fetchArchive(startDate: string, endDate: string): Promise<ArchiveResponse> {
   const params = new URLSearchParams({ kind: "archive", start: startDate, end: endDate });
   return request<ArchiveResponse>(`/api/reviews?${params.toString()}`);
+}
+
+export function fetchPeriodicReviews(): Promise<PeriodicReviewListResponse> {
+  return request<PeriodicReviewListResponse>("/api/periodic-reviews");
+}
+
+export function generatePeriodicReview(body: GeneratePeriodicReviewRequest): Promise<PeriodicReviewDto> {
+  return request<PeriodicReviewDto>("/api/periodic-reviews", { method: "POST", body: JSON.stringify(body) });
 }
 
 export function createEntry(body: CreateEntryRequest): Promise<CreateEntryResponse> {

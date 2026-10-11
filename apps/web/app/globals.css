@@ -131,6 +131,49 @@ button, textarea, input { font: inherit; }
 .history-state { margin: 0; padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .history-state.error, .history-limit { color: #89584a; }
 .history-limit { margin: 16px 0 0; font-size: 11px; }
+.periodic-review-view { padding-top: 42px; }
+.periodic-review-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding-bottom: 27px; border-bottom: 1px solid var(--line); }
+.periodic-review-title-row .section-label { margin-top: 26px; }
+.periodic-review-title-row h2 { margin: 8px 0 0; font-family: var(--font-heading); font-size: clamp(31px, 4vw, 44px); line-height: 1.2; font-weight: 600; letter-spacing: -.025em; }
+.periodic-review-title-row > div > p:last-child { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.periodic-generate { border: 1px solid var(--leaf-dark); border-radius: 999px; padding: 9px 16px; color: white; background: var(--leaf-dark); cursor: pointer; font-size: 12px; }
+.periodic-generate.secondary { color: var(--leaf-dark); border-color: rgba(80, 106, 75, .28); background: rgba(255, 255, 255, .5); }
+.periodic-generate:disabled { cursor: default; opacity: .45; }
+.periodic-state, .periodic-empty { padding: 54px 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.periodic-state.error { color: #89584a; }
+.periodic-state.error p { margin: 0; }
+.periodic-state.error button { margin-top: 14px; border: 0; padding: 5px 0; color: #89584a; background: transparent; cursor: pointer; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.periodic-empty { display: flex; align-items: flex-start; flex-direction: column; max-width: 580px; }
+.periodic-empty p { margin: 0; color: #454a43; font-family: var(--font-heading); font-size: 20px; line-height: 1.75; }
+.periodic-empty small { margin-top: 9px; color: #898b83; font-size: 11px; }
+.periodic-empty .periodic-generate { margin-top: 24px; }
+.periodic-working { display: flex; align-items: flex-start; gap: 14px; margin-top: 36px; padding: 22px 0; color: #4d594a; }
+.periodic-working .analysis-dot { margin-top: 7px; }
+.periodic-working strong { font-family: var(--font-heading); font-size: 17px; font-weight: 600; }
+.periodic-working p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.periodic-review-body { max-width: 900px; margin: 0 auto; }
+.periodic-review-body > header { padding: 45px 0 36px; }
+.periodic-review-body > header span { color: var(--leaf); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.periodic-review-body > header p { margin: 12px 0 0; color: #343a33; font-family: var(--font-heading); font-size: clamp(18px, 2.3vw, 22px); line-height: 1.9; letter-spacing: .005em; }
+.periodic-review-section { padding: 33px 0; border-top: 1px solid var(--line); }
+.periodic-theme { display: grid; grid-template-columns: minmax(130px, .34fr) minmax(0, 1fr); column-gap: 34px; padding: 25px 0; }
+.periodic-theme + .periodic-theme { border-top: 1px solid rgba(50, 55, 47, .08); }
+.periodic-theme h3 { margin: 0; color: #384236; font-family: var(--font-heading); font-size: 18px; line-height: 1.5; font-weight: 600; }
+.periodic-theme > p { margin: 0; color: #4c514a; font-size: 14px; line-height: 1.85; }
+.periodic-evidence-list { grid-column: 2; display: grid; gap: 7px; margin-top: 14px; }
+.periodic-evidence { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: start; gap: 13px; width: 100%; border: 0; border-left: 2px solid rgba(80, 106, 75, .28); padding: 10px 12px; text-align: left; color: inherit; background: rgba(255, 255, 255, .28); cursor: pointer; }
+.periodic-evidence:hover { border-left-color: var(--leaf); background: rgba(255, 255, 255, .5); }
+.periodic-evidence time { color: var(--leaf); font-size: 10px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+.periodic-evidence span { overflow: hidden; color: #73776f; font-size: 12px; line-height: 1.7; text-overflow: ellipsis; white-space: nowrap; }
+.periodic-evidence i { padding-top: 2px; color: #898c84; font-size: 10px; font-style: normal; }
+.periodic-review-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 46px; border-top: 1px solid var(--line); }
+.periodic-review-section.compact { border-top: 0; }
+.periodic-review-section ul { display: grid; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
+.periodic-review-section li { position: relative; padding-left: 16px; color: #4c514a; font-size: 13px; line-height: 1.8; }
+.periodic-review-section li::before { position: absolute; top: .75em; left: 0; width: 5px; height: 5px; border-radius: 50%; background: rgba(80, 106, 75, .55); content: ""; }
+.periodic-question { margin: 6px 0 0; padding: 27px 30px; border: 0; border-left: 3px solid rgba(80, 106, 75, .34); color: #3c4839; background: rgba(255, 255, 255, .34); font-family: var(--font-heading); font-size: 18px; line-height: 1.8; }
+.periodic-question span { display: block; margin-bottom: 7px; color: var(--leaf); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+.periodic-disclaimer { margin: 20px 0 0; color: #969890; font-size: 10px; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(37, 40, 35, .28); backdrop-filter: blur(4px); }
 .delete-dialog { width: min(420px, 100%); padding: 25px; border: 1px solid rgba(137, 88, 74, .18); border-radius: 18px; background: #fbf8f1; box-shadow: 0 26px 80px rgba(48, 42, 34, .22); }
 .delete-dialog h2 { margin: 0; color: #363832; font-size: 20px; line-height: 1.35; font-weight: 650; letter-spacing: -.025em; }
@@ -250,6 +293,11 @@ button, textarea, input { font: inherit; }
   .date-range-fields i { align-self: flex-end; padding-bottom: 12px; }
   .history-entry { grid-template-columns: 1fr; gap: 8px; padding: 19px 0; }
   .history-entry time { padding-top: 0; }
+  .periodic-review-title-row { align-items: flex-start; flex-direction: column; gap: 18px; }
+  .periodic-theme { grid-template-columns: 1fr; gap: 7px; }
+  .periodic-evidence-list { grid-column: 1; margin-top: 8px; }
+  .periodic-review-columns { grid-template-columns: 1fr; gap: 0; }
+  .periodic-review-columns .periodic-review-section + .periodic-review-section { border-top: 1px solid var(--line); }
 }
 
 @media (max-width: 520px) {
@@ -261,6 +309,13 @@ button, textarea, input { font: inherit; }
   .memory-entry { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; }
   .history-view { padding-top: 30px; }
   .history-title-row h2 { font-size: 30px; }
+  .periodic-review-view { padding-top: 30px; }
+  .periodic-review-title-row h2 { font-size: 32px; }
+  .periodic-review-body > header { padding-block: 34px 27px; }
+  .periodic-evidence { grid-template-columns: 1fr auto; gap: 5px 10px; }
+  .periodic-evidence span { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
+  .periodic-evidence i { grid-column: 2; grid-row: 1; }
+  .periodic-question { padding: 22px 20px; font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
