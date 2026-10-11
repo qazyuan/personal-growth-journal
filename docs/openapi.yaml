@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Personal Growth Journal API
-  version: 0.2.0
+  version: 0.3.0
 security:
   - supabaseBearer: []
 paths:
@@ -90,18 +90,53 @@ paths:
         - in: query
           name: kind
           required: true
-          schema: { type: string, enum: [on_this_day, month] }
+          schema: { type: string, enum: [on_this_day, archive] }
         - in: query
           name: date
           schema: { type: string, format: date }
           description: Required for on_this_day
         - in: query
-          name: month
-          schema: { type: string, pattern: "^[0-9]{4}-[0-9]{2}$" }
-          description: Required for month
+          name: start
+          schema: { type: string, format: date }
+          description: Required for archive
+        - in: query
+          name: end
+          schema: { type: string, format: date }
+          description: Required for archive
       responses:
         "200":
-          description: Matching original journal entries and calendar counts
+          description: Matching original journal entries
+  /api/periodic-reviews:
+    get:
+      summary: List stored periodic journal reviews
+      responses:
+        "200":
+          description: Recent review snapshots, newest first
+        "503":
+          description: Periodic review migration required
+    post:
+      summary: Generate or reuse a grounded periodic journal review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind, startDate, endDate]
+              properties:
+                kind: { type: string, enum: [half_year, custom, year] }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+      responses:
+        "200":
+          description: Review generated or an existing completed review returned
+        "202":
+          description: The same review scope is already being generated
+        "413":
+          description: More than 500 entries in the requested scope
+        "502":
+          description: AI generation or grounded-result validation failed
 components:
   securitySchemes:
     supabaseBearer:
