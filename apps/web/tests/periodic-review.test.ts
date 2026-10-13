@@ -62,17 +62,34 @@ test("resolves final review evidence from server-issued IDs", () => {
 test("rejects final review evidence IDs not issued by the server", () => {
   const indexed = structuredClone(valid);
   indexed.themes[0]!.evidence = [{ evidenceId: "invented" }] as never;
-  assert.throws(() => parsePeriodicReview(indexed, entries, new Map()), /不存在的证据编号/);
+  assert.throws(() => parsePeriodicReview(indexed, entries, new Map()), /没有可核验的主题证据/);
 });
 
-test("rejects a period review with fabricated evidence", () => {
+test("drops a fabricated theme while retaining other grounded themes", () => {
   const fabricated = structuredClone(valid);
   fabricated.themes[0]!.evidence[0]!.quote = "我已经完全不紧张了";
-  assert.throws(() => parsePeriodicReview(fabricated, entries), /引用了不存在的日记原文/);
+  const result = parsePeriodicReview(fabricated, entries);
+  assert.equal(result.themes.length, 1);
+  assert.equal(result.themes[0]!.title, "看待自己的方式");
 });
 
 test("rejects diagnostic or prescriptive period review language", () => {
   const diagnostic = structuredClone(valid);
   diagnostic.changes[0] = "说明你是焦虑症，你应该尽快改变。";
-  assert.throws(() => parsePeriodicReview(diagnostic, entries), /格式无效/);
+  assert.throws(() => parsePeriodicReview(diagnostic, entries), /诊断或指导性语言/);
+});
+
+test("tolerates missing optional arrays and truncates harmless overlong fields", () => {
+  const flexible = structuredClone(valid) as unknown as Record<string, unknown>;
+  flexible.turningPoints = undefined;
+  flexible.changes = undefined;
+  flexible.unresolved = undefined;
+  flexible.question = { unexpected: true };
+  const themes = flexible.themes as Array<Record<string, unknown>>;
+  themes[0]!.title = "一".repeat(80);
+  const result = parsePeriodicReview(flexible, entries);
+  assert.equal(result.themes[0]!.title.length, 40);
+  assert.deepEqual(result.turningPoints, []);
+  assert.deepEqual(result.changes, []);
+  assert.equal(result.question, undefined);
 });
