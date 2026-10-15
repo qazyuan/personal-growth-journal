@@ -155,7 +155,7 @@ button, textarea, input { font: inherit; }
 .periodic-review-body { max-width: 900px; margin: 0 auto; }
 .periodic-review-body > header { padding: 45px 0 36px; }
 .periodic-review-body > header span { color: var(--leaf); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
-.periodic-review-body > header p { margin: 12px 0 0; color: #343a33; font-family: var(--font-heading); font-size: clamp(18px, 2.3vw, 22px); line-height: 1.9; letter-spacing: .005em; }
+.periodic-review-body > header p { margin: 12px 0 0; color: #4c514a; font-family: var(--font-sans); font-size: 15px; font-weight: 400; line-height: 1.85; letter-spacing: normal; overflow-wrap: anywhere; }
 .periodic-review-section { padding: 33px 0; border-top: 1px solid var(--line); }
 .periodic-theme { display: grid; grid-template-columns: minmax(130px, .34fr) minmax(0, 1fr); column-gap: 34px; padding: 25px 0; }
 .periodic-theme + .periodic-theme { border-top: 1px solid rgba(50, 55, 47, .08); }
