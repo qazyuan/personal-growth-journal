@@ -28,6 +28,11 @@ const FINAL_INPUT_CHARACTER_LIMIT = 24_000;
 const VALIDATION_ATTEMPTS = 2;
 const UNSAFE_LANGUAGE = /(你应该|你必须|建议你|抑郁症|焦虑症|双相|人格障碍|创伤后应激|诊断为|说明你是|证明你是)/;
 
+function isRetryableOutputError(error: unknown): error is AiProviderError {
+  return error instanceof AiProviderError
+    && (error.code === "invalid_response" || error.code === "empty_response");
+}
+
 const CHUNK_SYSTEM_PROMPT = `你是“来时路”的阶段回顾整理助手。你正在整理一段较长时期中的部分日记，为稍后的总回顾提供忠实素材。
 
 只输出一个 JSON 对象，格式严格如下：
@@ -298,7 +303,7 @@ async function summarizeChunk(entries: PeriodicReviewSourceEntry[]): Promise<Chu
       return parseChunkSummary(completion.value, sourceRegistry);
     } catch (error) {
       lastError = error;
-      if (!(error instanceof AiProviderError) || error.code !== "invalid_response") throw error;
+      if (!isRetryableOutputError(error)) throw error;
     }
   }
   throw lastError instanceof Error
@@ -377,7 +382,7 @@ async function completeIndexedReview(
       };
     } catch (error) {
       lastError = error;
-      if (!(error instanceof AiProviderError) || error.code !== "invalid_response") throw error;
+      if (!isRetryableOutputError(error)) throw error;
     }
   }
   throw lastError instanceof Error

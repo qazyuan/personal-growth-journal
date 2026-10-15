@@ -19,6 +19,7 @@ const REVISION_BATCH_SIZE = 200;
 const ERROR_MESSAGES: Record<string, string> = {
   not_configured: "AI 服务尚未配置，可以稍后再生成",
   timeout: "这次回顾生成超时，可以稍后重试",
+  empty_response: "AI 这次没有返回回顾内容，已重试但仍未完成，请稍后再试",
   invalid_response: "AI 返回的回顾没有通过原文校验，可以重新生成",
   unavailable: "AI 服务暂时不可用，可以稍后重试",
   empty_scope: "这段时间还没有可以回顾的日记",
