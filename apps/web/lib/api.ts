@@ -15,14 +15,9 @@ import type {
   ReflectionConversationDto,
   SendReflectionMessageRequest,
 } from "@journal/contracts";
-import { getBrowserSupabase } from "./supabase-browser";
+import { getBrowserSupabase, getValidBrowserSession } from "./supabase-browser";
 
-async function request<T>(path: string, init?: RequestInit, allowRefresh = true): Promise<T> {
-  const supabase = getBrowserSupabase();
-  const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
-  const token = data.session?.access_token;
-  if (!token) throw new Error("请先登录");
-
+async function send(path: string, init: RequestInit | undefined, token: string): Promise<Response> {
   let response: Response;
   try {
     const headers = new Headers(init?.headers);
@@ -36,11 +31,28 @@ async function request<T>(path: string, init?: RequestInit, allowRefresh = true)
   } catch {
     throw new Error("无法连接记录服务");
   }
+  return response;
+}
 
-  if (response.status === 401 && supabase && allowRefresh) {
-    const { data: refreshed, error } = await supabase.auth.refreshSession();
-    if (refreshed.session && !error) return request<T>(path, init, false);
-    await supabase.auth.signOut({ scope: "local" });
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const supabase = getBrowserSupabase();
+  const session = await getValidBrowserSession();
+  if (!supabase || !session?.access_token) throw new Error("请先登录");
+
+  let response = await send(path, init, session.access_token);
+
+  if (response.status === 401) {
+    try {
+      const refreshed = await getValidBrowserSession(true);
+      if (!refreshed?.access_token) throw new Error("missing_refreshed_session");
+      response = await send(path, init, refreshed.access_token);
+    } catch (error) {
+      const status = typeof error === "object" && error && "status" in error ? Number(error.status) : 0;
+      if (status === 400 || status === 401) await supabase.auth.signOut({ scope: "local" });
+      throw new Error(status === 400 || status === 401
+        ? "登录状态已失效，请重新登录"
+        : "登录刷新失败，请检查网络后重试");
+    }
   }
 
   if (!response.ok) {
