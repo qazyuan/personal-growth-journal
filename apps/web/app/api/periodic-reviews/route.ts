@@ -13,7 +13,9 @@ import { requireUser, type AuthContext } from "../../../lib/supabase-server";
 export const maxDuration = 300;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const ENTRY_LIMIT = 500;
+const ENTRY_PAGE_SIZE = 400;
+const ENTRY_HARD_LIMIT = 2_000;
+const REVISION_BATCH_SIZE = 200;
 const ERROR_MESSAGES: Record<string, string> = {
   not_configured: "AI 服务尚未配置，可以稍后再生成",
   timeout: "这次回顾生成超时，可以稍后重试",
@@ -91,30 +93,40 @@ async function loadEntries(
   startDate: string,
   endDate: string,
 ): Promise<PeriodicReviewSourceEntry[] | Response> {
-  const { data, error, count } = await auth.client
-    .from("entries")
-    .select("id,current_revision,local_date", { count: "exact" })
-    .eq("user_id", auth.userId)
-    .eq("status", "active")
-    .gte("local_date", startDate)
-    .lte("local_date", endDate)
-    .order("local_date", { ascending: true })
-    .order("occurred_at", { ascending: true })
-    .limit(ENTRY_LIMIT);
-  if (error) return Response.json({ message: "读取阶段回顾日记失败" }, { status: 500 });
-  const entries = (data ?? []) as EntryRow[];
-  if ((count ?? 0) > entries.length) {
-    return Response.json({ message: ERROR_MESSAGES.too_many_entries }, { status: 413 });
+  const entries: EntryRow[] = [];
+  for (let offset = 0; offset < ENTRY_HARD_LIMIT; offset += ENTRY_PAGE_SIZE) {
+    const { data, error, count } = await auth.client
+      .from("entries")
+      .select("id,current_revision,local_date", { count: offset === 0 ? "exact" : undefined })
+      .eq("user_id", auth.userId)
+      .eq("status", "active")
+      .gte("local_date", startDate)
+      .lte("local_date", endDate)
+      .order("local_date", { ascending: true })
+      .order("occurred_at", { ascending: true })
+      .range(offset, offset + ENTRY_PAGE_SIZE - 1);
+    if (error) return Response.json({ message: "读取阶段回顾日记失败" }, { status: 500 });
+    if (offset === 0 && (count ?? 0) > ENTRY_HARD_LIMIT) {
+      return Response.json({ message: ERROR_MESSAGES.too_many_entries }, { status: 413 });
+    }
+    const page = (data ?? []) as EntryRow[];
+    entries.push(...page);
+    if (page.length < ENTRY_PAGE_SIZE) break;
   }
   if (!entries.length) return [];
 
-  const { data: revisions, error: revisionError } = await auth.client
-    .from("entry_revisions")
-    .select("entry_id,revision,content")
-    .in("entry_id", entries.map((entry) => entry.id));
-  if (revisionError) return Response.json({ message: "读取阶段回顾正文失败" }, { status: 500 });
+  const revisions: Array<{ entry_id: string; revision: number; content: string }> = [];
+  const entryIds = entries.map((entry) => entry.id);
+  for (let index = 0; index < entryIds.length; index += REVISION_BATCH_SIZE) {
+    const { data, error } = await auth.client
+      .from("entry_revisions")
+      .select("entry_id,revision,content")
+      .in("entry_id", entryIds.slice(index, index + REVISION_BATCH_SIZE));
+    if (error) return Response.json({ message: "读取阶段回顾正文失败" }, { status: 500 });
+    revisions.push(...(data ?? []));
+  }
   const contentByEntry = new Map<string, { revision: number; content: string }>();
-  for (const revision of revisions ?? []) {
+  for (const revision of revisions) {
     const current = contentByEntry.get(revision.entry_id);
     if (!current || revision.revision > current.revision) contentByEntry.set(revision.entry_id, revision);
   }

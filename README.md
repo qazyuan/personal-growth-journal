@@ -87,6 +87,12 @@
    supabase/migrations/202610110007_periodic_reviews.sql
    ```
 
+   为启用最长 10 年的自定义日期回顾，还需要继续执行：
+
+   ```text
+   supabase/migrations/202610150008_expand_periodic_review_range.sql
+   ```
+
 4. 在 `apps/web/.env.local` 中配置服务端 AI 环境变量。以 DeepSeek 为例：
 
    ```dotenv
