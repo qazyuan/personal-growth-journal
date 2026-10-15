@@ -6,7 +6,7 @@ import type {
 } from "@journal/contracts";
 import { AiProviderError, completeJson } from "./provider";
 
-export const PERIODIC_REVIEW_PROMPT_VERSION = "periodic-review-v3";
+export const PERIODIC_REVIEW_PROMPT_VERSION = "periodic-review-v4";
 
 export type PeriodicReviewSourceEntry = {
   id: string;
@@ -24,6 +24,8 @@ type EvidenceRegistry = Map<string, PeriodicReviewEvidence>;
 
 const CHUNK_CHARACTER_LIMIT = 16_000;
 const ENTRY_CHARACTER_LIMIT = 9_000;
+const FINAL_INPUT_CHARACTER_LIMIT = 24_000;
+const VALIDATION_ATTEMPTS = 2;
 const UNSAFE_LANGUAGE = /(你应该|你必须|建议你|抑郁症|焦虑症|双相|人格障碍|创伤后应激|诊断为|说明你是|证明你是)/;
 
 const CHUNK_SYSTEM_PROMPT = `你是“来时路”的阶段回顾整理助手。你正在整理一段较长时期中的部分日记，为稍后的总回顾提供忠实素材。
@@ -289,8 +291,19 @@ function makeChunks(entries: PeriodicReviewSourceEntry[]): PeriodicReviewSourceE
 async function summarizeChunk(entries: PeriodicReviewSourceEntry[]): Promise<ChunkSummary> {
   const sourceRegistry = new Map(entries.map((entry, index) => [`d${index}`, entry]));
   const content = entries.map((entry, index) => compactEntry(entry, `d${index}`)).join("\n\n");
-  const completion = await completeJson(CHUNK_SYSTEM_PROMPT, content, { maxTokens: 1100, timeoutMs: 45_000 });
-  return parseChunkSummary(completion.value, sourceRegistry);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < VALIDATION_ATTEMPTS; attempt += 1) {
+    try {
+      const completion = await completeJson(CHUNK_SYSTEM_PROMPT, content, { maxTokens: 1100, timeoutMs: 45_000 });
+      return parseChunkSummary(completion.value, sourceRegistry);
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof AiProviderError) || error.code !== "invalid_response") throw error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new AiProviderError("invalid_response", "AI 阶段摘要格式无效");
 }
 
 async function summarizeWithConcurrency(chunks: PeriodicReviewSourceEntry[][]): Promise<ChunkSummary[]> {
@@ -326,6 +339,76 @@ function indexEvidence(summaries: ChunkSummary[]): { indexedSummaries: unknown[]
   return { indexedSummaries, evidenceRegistry };
 }
 
+export function batchByCharacterLimit<T>(items: T[], maxCharacters: number): T[][] {
+  if (maxCharacters < 1) throw new Error("maxCharacters must be positive");
+  const batches: T[][] = [];
+  let current: T[] = [];
+  let currentSize = 0;
+  for (const item of items) {
+    const itemSize = JSON.stringify(item).length + 1;
+    if (current.length && currentSize + itemSize > maxCharacters) {
+      batches.push(current);
+      current = [];
+      currentSize = 0;
+    }
+    current.push(item);
+    currentSize += itemSize;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+async function completeIndexedReview(
+  indexedSummaries: unknown[],
+  evidenceRegistry: EvidenceRegistry,
+): Promise<{ result: PeriodicReviewResult; provider: string; model: string }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < VALIDATION_ATTEMPTS; attempt += 1) {
+    try {
+      const completion = await completeJson(
+        FINAL_SYSTEM_PROMPT,
+        JSON.stringify({ summaries: indexedSummaries }),
+        { maxTokens: 1800, timeoutMs: 60_000 },
+      );
+      return {
+        result: parsePeriodicReview(completion.value, [], evidenceRegistry),
+        provider: completion.provider,
+        model: completion.model,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof AiProviderError) || error.code !== "invalid_response") throw error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new AiProviderError("invalid_response", "AI 阶段回顾格式无效");
+}
+
+function reviewResultToChunkSummary(result: PeriodicReviewResult): ChunkSummary {
+  const supportingNotes = [...result.changes, ...result.unresolved];
+  return {
+    summary: [result.overview, ...supportingNotes].join("；").slice(0, 1200),
+    themes: result.themes,
+    turningPoints: result.turningPoints,
+  };
+}
+
+async function condenseSummaries(
+  indexedSummaries: unknown[],
+  evidenceRegistry: EvidenceRegistry,
+): Promise<ChunkSummary[]> {
+  const batches = batchByCharacterLimit(indexedSummaries, FINAL_INPUT_CHARACTER_LIMIT);
+  const condensed: ChunkSummary[] = [];
+  for (let index = 0; index < batches.length; index += 3) {
+    const results = await Promise.all(
+      batches.slice(index, index + 3).map((batch) => completeIndexedReview(batch, evidenceRegistry)),
+    );
+    condensed.push(...results.map(({ result }) => reviewResultToChunkSummary(result)));
+  }
+  return condensed;
+}
+
 export async function generatePeriodicReview(entries: PeriodicReviewSourceEntry[]): Promise<{
   result: PeriodicReviewResult;
   provider: string;
@@ -335,13 +418,17 @@ export async function generatePeriodicReview(entries: PeriodicReviewSourceEntry[
   if (!entries.length) throw new AiProviderError("invalid_response", "这段时间还没有可以回顾的日记");
   const chunks = makeChunks(entries);
   const summaries = await summarizeWithConcurrency(chunks);
-  const { indexedSummaries, evidenceRegistry } = indexEvidence(summaries);
-  const completion = await completeJson(FINAL_SYSTEM_PROMPT, JSON.stringify({ summaries: indexedSummaries }), {
-    maxTokens: 1800,
-    timeoutMs: 60_000,
-  });
+  let { indexedSummaries, evidenceRegistry } = indexEvidence(summaries);
+  while (
+    indexedSummaries.length > 1
+    && JSON.stringify({ summaries: indexedSummaries }).length > FINAL_INPUT_CHARACTER_LIMIT
+  ) {
+    const condensed = await condenseSummaries(indexedSummaries, evidenceRegistry);
+    ({ indexedSummaries, evidenceRegistry } = indexEvidence(condensed));
+  }
+  const completion = await completeIndexedReview(indexedSummaries, evidenceRegistry);
   return {
-    result: parsePeriodicReview(completion.value, entries, evidenceRegistry),
+    result: completion.result,
     provider: completion.provider,
     model: completion.model,
     promptVersion: PERIODIC_REVIEW_PROMPT_VERSION,

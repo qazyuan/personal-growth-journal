@@ -190,11 +190,11 @@ export async function POST(request: Request) {
     return Response.json(rpcDto(completed as StartedReview, body));
   } catch (error) {
     const code = error instanceof AiProviderError ? error.code : "unavailable";
-    console.warn("[periodic-review] generation failed", {
+    console.warn("[periodic-review] generation failed", JSON.stringify({
       reviewId: started.reviewId,
       code,
       reason: error instanceof Error ? error.message : "unknown_error",
-    });
+    }));
     await auth.client.rpc("fail_periodic_review", { p_review_id: started.reviewId, p_error_code: code });
     return Response.json({ message: ERROR_MESSAGES[code] ?? "阶段回顾生成失败，可以重试" }, { status: 502 });
   }

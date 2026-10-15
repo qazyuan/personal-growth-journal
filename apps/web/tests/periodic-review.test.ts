@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePeriodicReview, type PeriodicReviewSourceEntry } from "../lib/ai/periodic-review";
+import {
+  batchByCharacterLimit,
+  parsePeriodicReview,
+  type PeriodicReviewSourceEntry,
+} from "../lib/ai/periodic-review";
 
 const entries: PeriodicReviewSourceEntry[] = [
   { id: "entry-a", localDate: "2026-05-03", content: "今天第一次去新的地方，虽然紧张，但我还是走进去了。" },
@@ -117,4 +121,22 @@ test("tolerates missing optional arrays and truncates harmless overlong fields",
   assert.deepEqual(result.turningPoints, []);
   assert.deepEqual(result.changes, []);
   assert.equal(result.question, undefined);
+});
+
+test("batches long review material without dropping or reordering summaries", () => {
+  const summaries = [
+    { summary: "一".repeat(40) },
+    { summary: "二".repeat(40) },
+    { summary: "三".repeat(40) },
+    { summary: "四".repeat(40) },
+  ];
+  const batches = batchByCharacterLimit(summaries, 100);
+  assert.ok(batches.length > 1);
+  assert.deepEqual(batches.flat(), summaries);
+  assert.ok(batches.every((batch) => batch.length > 0));
+});
+
+test("keeps one oversized summary in its own batch", () => {
+  const oversized = { summary: "很长".repeat(100) };
+  assert.deepEqual(batchByCharacterLimit([oversized], 20), [[oversized]]);
 });
