@@ -75,12 +75,6 @@ function stringField(value: unknown, maxLength: number): string {
   return text.slice(0, maxLength);
 }
 
-function assertSafeLanguage(value: unknown): void {
-  if (UNSAFE_LANGUAGE.test(JSON.stringify(value))) {
-    throw new AiProviderError("invalid_response", "AI 阶段回顾包含诊断或指导性语言");
-  }
-}
-
 function normalizedText(value: string): string {
   return [...value]
     .filter((character) => !/^[\p{P}\p{S}\s]$/u.test(character))
@@ -200,7 +194,6 @@ function turningPointField(value: unknown, resolveEvidence: EvidenceResolver): P
 }
 
 function parseChunkSummary(value: unknown, sourceRegistry: Map<string, PeriodicReviewSourceEntry>): ChunkSummary {
-  assertSafeLanguage(value);
   const root = asRecord(value);
   if (!root || !Array.isArray(root.themes)) {
     throw new AiProviderError("invalid_response", "AI 阶段摘要格式无效");
@@ -230,7 +223,6 @@ export function parsePeriodicReview(
   entries: PeriodicReviewSourceEntry[],
   evidenceRegistry?: EvidenceRegistry,
 ): PeriodicReviewResult {
-  assertSafeLanguage(value);
   const root = asRecord(value);
   const sourceById = new Map(entries.map((entry) => [entry.id, entry]));
   if (!root || !Array.isArray(root.themes)) {

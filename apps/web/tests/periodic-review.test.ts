@@ -76,7 +76,32 @@ test("drops a fabricated theme while retaining other grounded themes", () => {
 test("rejects diagnostic or prescriptive period review language", () => {
   const diagnostic = structuredClone(valid);
   diagnostic.changes[0] = "说明你是焦虑症，你应该尽快改变。";
-  assert.throws(() => parsePeriodicReview(diagnostic, entries), /诊断或指导性语言/);
+  assert.throws(() => parsePeriodicReview(diagnostic, entries), /格式无效/);
+});
+
+test("allows sensitive words when they are verified quotations from the journal", () => {
+  const sourceEntries: PeriodicReviewSourceEntry[] = [{
+    id: "entry-sensitive",
+    localDate: "2026-09-08",
+    content: "那天我反复问自己：我应该怎么办？后来还在网上搜索了焦虑症三个字。",
+  }];
+  const review = {
+    overview: "这篇记录保留了当时反复寻找答案的过程。",
+    themes: [{
+      title: "寻找答案",
+      observation: "记录中出现了对下一步方向的反复追问。",
+      evidence: [{
+        entryId: "entry-sensitive",
+        localDate: "2026-09-08",
+        quote: "我应该怎么办",
+      }],
+    }],
+    changes: [],
+    unresolved: [],
+    question: null,
+  };
+  const result = parsePeriodicReview(review, sourceEntries);
+  assert.equal(result.themes[0]!.evidence[0]!.quote, "我应该怎么办");
 });
 
 test("tolerates missing optional arrays and truncates harmless overlong fields", () => {
