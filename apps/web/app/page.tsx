@@ -17,7 +17,7 @@ import type {
   ReflectionMessageDto,
 } from "@journal/contracts";
 import type { Session } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createEntry,
   deleteEntry,
@@ -43,6 +43,7 @@ type ReviewRequest = {
   startDate: string;
   endDate: string;
   title: string;
+  autoGenerate?: boolean;
 };
 const ENTRY_COUNT_PROBE_LIMIT = 1;
 
@@ -531,6 +532,7 @@ function PeriodicReviewWorkspace({
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const autoGenerateStarted = useRef(false);
 
   const loadReview = useCallback(async () => {
     const response = await fetchPeriodicReviews();
@@ -542,6 +544,24 @@ function PeriodicReviewWorkspace({
     setReview(latest);
     return latest;
   }, [request.endDate, request.kind, request.startDate]);
+
+  const generate = useCallback(async () => {
+    if (generating) return;
+    setGenerating(true);
+    setError("");
+    try {
+      setReview(await generatePeriodicReview({
+        kind: request.kind,
+        startDate: request.startDate,
+        endDate: request.endDate,
+      }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "这段时间的回顾暂时无法生成");
+      await loadReview().catch(() => undefined);
+    } finally {
+      setGenerating(false);
+    }
+  }, [generating, loadReview, request.endDate, request.kind, request.startDate]);
 
   useEffect(() => {
     let active = true;
@@ -566,23 +586,13 @@ function PeriodicReviewWorkspace({
     return () => window.clearInterval(timer);
   }, [loadReview, review?.status]);
 
-  async function generate() {
-    if (generating) return;
-    setGenerating(true);
-    setError("");
-    try {
-      setReview(await generatePeriodicReview({
-        kind: request.kind,
-        startDate: request.startDate,
-        endDate: request.endDate,
-      }));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "这段时间的回顾暂时无法生成");
-      await loadReview().catch(() => undefined);
-    } finally {
-      setGenerating(false);
-    }
-  }
+  useEffect(() => {
+    if (!request.autoGenerate || loading || error || generating || autoGenerateStarted.current) return;
+    if (review && review.status !== "failed") return;
+    autoGenerateStarted.current = true;
+    const timer = window.setTimeout(() => void generate(), 0);
+    return () => window.clearTimeout(timer);
+  }, [error, generate, generating, loading, request.autoGenerate, review]);
 
   const result = review?.status === "completed" ? review.result : undefined;
 
@@ -1011,6 +1021,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           startDate,
           endDate,
           title: "这段时间的回顾",
+          autoGenerate: true,
         })}
         onRetryAnalysis={(entryId) => void runAnalysis(entryId)}
       /> : <div className="workspace">
