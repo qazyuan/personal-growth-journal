@@ -272,6 +272,11 @@ button, textarea, input { font: inherit; }
 .empty-state { display: grid; place-items: center; min-height: 240px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; }
 .empty-state span { font-family: Georgia, serif; font-size: 38px; color: #abb2a4; }
 
+/* Give desktop writing more room without stretching to the review column. */
+@media (min-width: 821px) {
+  .composer textarea { height: 390px; }
+}
+
 @media (max-width: 820px) {
   .shell { width: min(100% - 28px, 700px); padding-top: 24px; }
   .workspace { grid-template-columns: 1fr; gap: 34px; padding-top: 28px; }
