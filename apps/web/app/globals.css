@@ -228,7 +228,11 @@ button, textarea, input { font: inherit; }
 .analysis-card.safety { color: #704b43; border-color: rgba(137, 88, 74, .22); background: rgba(255, 247, 243, .7); }
 .analysis-title { margin-bottom: 9px !important; color: var(--leaf); font-size: 11px !important; font-weight: 700; letter-spacing: .08em; }
 .observation + .observation { margin-top: 11px; }
-.reflection-category { margin-top: 16px; }
+.reflection-category { margin-top: 10px; }
+.analysis-card.complete p { margin: 0; }
+.analysis-card.complete .analysis-title { margin-bottom: 4px !important; }
+.analysis-card.complete .reflection-question > p + p { margin-top: 6px; }
+.home-review-toolbar { margin-top: 24px; }
 .reflection-category > p:not(.analysis-title) { font-size: 14px; color: var(--muted); }
 .analysis-card .observation > p { color: #4e554b; font-size: 14px; line-height: 1.75; }
 .analysis-card blockquote { margin: 5px 0 0; padding-left: 10px; border-left: 1px solid rgba(80, 106, 75, .3); color: #7d8178; font-size: 13px; line-height: 1.7; }

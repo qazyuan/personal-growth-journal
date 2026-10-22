@@ -45,7 +45,7 @@ type ReviewRequest = {
   title: string;
   autoGenerate?: boolean;
 };
-const RECENT_ENTRIES_LIMIT = 5;
+const RECENT_ENTRIES_LIMIT = 1;
 
 function sourceForDevice(): EntrySource {
   if (/iPhone|iPod/.test(navigator.userAgent)) return "iphone";
@@ -1067,28 +1067,15 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
         </section>
 
         <section className="timeline home-review" aria-label="日记回顾">
-          <div className="timeline-heading home-review-toolbar">
-            <div><p className="section-label">回看</p><p className="home-review-intro">记录此刻，也看看一路走来的自己。</p></div>
-            <div className="timeline-heading-actions">
-              <span>{entryTotal} 条</span>
-              <button type="button" onClick={() => {
-                const range = recentHalfYearRange();
-                setReviewRequest({ kind: "half_year", ...range, title: "最近半年" });
-              }}>半年回顾</button>
-              <button type="button" onClick={() => {
-                setHistoryInitialDate(undefined);
-                setHistoryOpen(true);
-              }}>完整历史</button>
-              <button type="button" onClick={() => setImportOpen(true)}>导入日记</button>
-            </div>
-          </div>
-          {loading ? <p className="memory-state">正在准备今天的回顾……</p> : null}
-          <OnThisDay state={onThisDay} loading={memoryLoading} error={memoryError} />
           <section aria-labelledby="recent-entries-title">
             <div className="timeline-heading">
               <h2 id="recent-entries-title">最近的记录</h2>
-              <span>最近 {RECENT_ENTRIES_LIMIT} 条 · 更多见完整历史</span>
+              <div className="timeline-heading-actions"><button type="button" onClick={() => {
+                setHistoryInitialDate(undefined);
+                setHistoryOpen(true);
+              }}>完整历史</button></div>
             </div>
+            {loading ? <p className="memory-state">正在读取最近的记录……</p> : null}
             {!loading && !recentEntries.length ? <p className="memory-state">{serviceOnline === false ? "暂时无法读取最近记录，请稍后重试。" : "写下的记录会显示在这里。"}</p> : null}
             {recentEntries.map((entry) => (
               <article className="history-entry" key={entry.id}>
@@ -1112,6 +1099,18 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
               </article>
             ))}
           </section>
+          <div className="timeline-heading home-review-toolbar">
+            <div><p className="section-label">回看</p><p className="home-review-intro">记录此刻，也看看一路走来的自己。</p></div>
+            <div className="timeline-heading-actions">
+              <span>{entryTotal} 条</span>
+              <button type="button" onClick={() => {
+                const range = recentHalfYearRange();
+                setReviewRequest({ kind: "half_year", ...range, title: "最近半年" });
+              }}>半年回顾</button>
+              <button type="button" onClick={() => setImportOpen(true)}>导入日记</button>
+            </div>
+          </div>
+          <OnThisDay state={onThisDay} loading={memoryLoading} error={memoryError} />
         </section>
       </div>}
       <DeleteEntryDialog
