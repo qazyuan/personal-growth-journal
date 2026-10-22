@@ -45,7 +45,7 @@ type ReviewRequest = {
   title: string;
   autoGenerate?: boolean;
 };
-const ENTRY_COUNT_PROBE_LIMIT = 1;
+const RECENT_ENTRIES_LIMIT = 5;
 
 function sourceForDevice(): EntrySource {
   if (/iPhone|iPod/.test(navigator.userAgent)) return "iphone";
@@ -816,6 +816,7 @@ function HistoryArchive({
 function Journal({ session, onChangePassword }: { session: Session; onChangePassword: () => void }) {
   const [content, setContent] = useState(() => typeof window === "undefined" ? "" : loadDraft());
   const [entryTotal, setEntryTotal] = useState(0);
+  const [recentEntries, setRecentEntries] = useState<EntryDto[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, AnalysisStateDto>>({});
   const [onThisDay, setOnThisDay] = useState<OnThisDayResponse | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(true);
@@ -853,7 +854,8 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   }, []);
 
   const refresh = useCallback(async () => {
-    const result = await fetchEntries({ limit: ENTRY_COUNT_PROBE_LIMIT });
+    const result = await fetchEntries({ limit: RECENT_ENTRIES_LIMIT });
+    setRecentEntries(result.entries);
     setEntryTotal(result.total);
     setServiceOnline(true);
     try {
@@ -952,6 +954,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     setMessage("已留在本机，正在同步…");
     try {
       const saved = await createEntry(request);
+      setRecentEntries((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)].slice(0, RECENT_ENTRIES_LIMIT));
       removePendingEntry(request.operationId);
       setPendingCount(loadOutbox().length);
       setEntryTotal((current) => current + 1);
@@ -975,6 +978,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
     setDeleteError("");
     try {
       await deleteEntry(entryId);
+      setRecentEntries((current) => current.filter((entry) => entry.id !== entryId));
       setEntryTotal((current) => Math.max(0, current - 1));
       setHistoryRevision((current) => current + 1);
       setAnalyses((current) => {
@@ -1080,6 +1084,34 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           </div>
           {loading ? <p className="memory-state">正在准备今天的回顾……</p> : null}
           <OnThisDay state={onThisDay} loading={memoryLoading} error={memoryError} />
+          <section aria-labelledby="recent-entries-title">
+            <div className="timeline-heading">
+              <h2 id="recent-entries-title">最近的记录</h2>
+              <span>最近 {RECENT_ENTRIES_LIMIT} 条 · 更多见完整历史</span>
+            </div>
+            {!loading && !recentEntries.length ? <p className="memory-state">{serviceOnline === false ? "暂时无法读取最近记录，请稍后重试。" : "写下的记录会显示在这里。"}</p> : null}
+            {recentEntries.map((entry) => (
+              <article className="history-entry" key={entry.id}>
+                <time dateTime={entry.occurredAt}>{localDateTitle(entry.localDate)} · {timeLabel(entry.occurredAt)}</time>
+                <div className="history-entry-body">
+                  <p className="history-entry-content">{entry.content}</p>
+                  {entry.mode === "record_and_analyze" ? <AnalysisCard
+                    analysis={analyses[entry.id]}
+                    onRetry={() => void runAnalysis(entry.id)}
+                    onContinue={() => setOpenConversationEntryId((current) => current === entry.id ? null : entry.id)}
+                    conversationOpen={openConversationEntryId === entry.id}
+                  /> : null}
+                  {openConversationEntryId === entry.id ? <ReflectionConversation entryId={entry.id} onClose={() => setOpenConversationEntryId(null)} /> : null}
+                  <div className="entry-actions">
+                    <button className="delete-trigger" type="button" onClick={() => {
+                      setDeleteError("");
+                      setConfirmDeleteEntry(entry);
+                    }}>删除</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </section>
         </section>
       </div>}
       <DeleteEntryDialog
