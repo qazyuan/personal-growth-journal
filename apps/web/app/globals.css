@@ -128,6 +128,8 @@ button, textarea, input { font: inherit; }
 .history-entry { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 24px; padding: 22px 0; border-top: 1px solid var(--line); }
 .history-entry time { padding-top: 4px; color: #85887f; font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
 .history-entry-body { min-width: 0; }
+.home-review .history-entry { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.home-review .history-entry > time { padding-top: 0; }
 .history-entry-content { margin: 0; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(80, 106, 75, .28) transparent; padding-right: 10px; white-space: pre-wrap; overflow-wrap: anywhere; color: #343832; font-size: 15px; line-height: 1.9; }
 .history-state { margin: 0; padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .history-state.error, .history-limit { color: #89584a; }
