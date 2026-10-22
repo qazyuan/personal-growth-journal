@@ -111,6 +111,17 @@ function AnalysisCard({
   return (
     <div className="analysis-card complete">
       <p className="analysis-title">此刻的回望</p>
+      {analysis.result.breakdown ? Object.entries(analysis.result.breakdown).map(([key, items]) => (
+        <section className="reflection-category" key={key}>
+          <p className="analysis-title">{{ facts: "事实 · 按你的记录", feelings: "感受", guesses: "猜测 · 尚未证实", needs: "需要" }[key]}</p>
+          {items.length ? items.map((item, index) => (
+            <div className="observation" key={index}>
+              <p>{item.inferred ? <span>可能，待你确认：{item.text}</span> : item.text}</p>
+              <blockquote>原话：“{item.evidence}”</blockquote>
+            </div>
+          )) : <p>这篇记录中暂未明确，不替你补充。</p>}
+        </section>
+      )) : null}
       {analysis.result.observations.map((observation, index) => (
         <div className="observation" key={`${observation.evidence}-${index}`}>
           <p>{observation.text}</p>
@@ -118,6 +129,13 @@ function AnalysisCard({
         </div>
       ))}
       {analysis.result.question ? <p className="reflection-question">想一想：{analysis.result.question}</p> : null}
+      {analysis.result.smallStep ? (
+        <section className="reflection-question">
+          <p className="analysis-title">此刻可以试的一小步 · 约 {analysis.result.smallStep.durationSeconds} 秒</p>
+          <p>{analysis.result.smallStep.action}</p>
+          <p>不想做也可以，不需要立刻让自己好起来。</p>
+        </section>
+      ) : null}
       <div className="analysis-actions">
         <button type="button" onClick={onContinue}>{conversationOpen ? "收起对话" : "继续聊聊"}</button>
         <span>只参考这篇记录</span>

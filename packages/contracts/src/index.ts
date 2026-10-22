@@ -158,6 +158,8 @@ export interface ReflectionAnalysisResult {
   kind: "reflection";
   observations: ReflectionObservation[];
   question?: string;
+  breakdown?: Record<"facts" | "feelings" | "guesses" | "needs", Array<ReflectionObservation & { inferred: boolean }>>;
+  smallStep?: { action: string; evidence: string; durationSeconds: number };
 }
 
 export interface SafetyAnalysisResult {
