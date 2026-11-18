@@ -1053,7 +1053,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
             <p className="section-label">此刻</p>
             <button type="button" className="composer-expand" aria-pressed={composerExpanded}
               onClick={() => setComposerExpanded((current) => !current)}>
-              {composerExpanded ? "恢复布局" : "放大输入区"}
+              {composerExpanded ? "缩小" : "放大"}
             </button>
           </div>
           <h2 id="composer-title">有什么想记下来的？</h2>
