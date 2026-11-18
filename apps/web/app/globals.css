@@ -63,6 +63,14 @@ button, textarea, input { font: inherit; }
 .composer h2, .timeline h2 { margin: 8px 0 22px; font-family: var(--font-heading); font-size: clamp(21px, 2vw, 23px); line-height: 1.4; font-weight: 600; letter-spacing: -0.02em; }
 .composer textarea { width: 100%; resize: vertical; min-height: 210px; padding: 18px 0; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); outline: 0; color: #343832; background: transparent; font-size: 16px; font-weight: 400; line-height: 1.85; letter-spacing: .005em; }
 .composer textarea::placeholder { color: #a19f97; }
+.composer-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.composer-expand { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--leaf-dark); font-size: 12px; cursor: pointer; }
+.composer-expand:hover { background: rgba(80, 106, 75, .08); }
+.composer-expand:focus-visible { outline: 2px solid var(--leaf); outline-offset: 3px; }
+.workspace.workspace-focused { grid-template-columns: minmax(0, 1fr); }
+.workspace-focused > .home-review { display: none; }
+.workspace-focused > .composer { position: static; }
+.workspace-focused .composer textarea { height: max(390px, 55svh); }
 .composer-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 18px; }
 .save-message { min-height: 20px; color: var(--muted); font-size: 12px; }
 .save-message.saved { color: var(--leaf); }

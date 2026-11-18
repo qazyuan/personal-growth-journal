@@ -837,6 +837,7 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
   const [deleteError, setDeleteError] = useState("");
   const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const runAnalysis = useCallback(async (entryId: string) => {
     setAnalyses((current) => ({ ...current, [entryId]: { entryId, status: "running" } }));
@@ -1046,9 +1047,15 @@ function Journal({ session, onChangePassword }: { session: Session; onChangePass
           autoGenerate: true,
         })}
         onRetryAnalysis={(entryId) => void runAnalysis(entryId)}
-      /> : <div className="workspace">
+      /> : <div className={composerExpanded ? "workspace workspace-focused" : "workspace"}>
         <section className="composer" aria-labelledby="composer-title">
-          <p className="section-label">此刻</p>
+          <div className="composer-toolbar">
+            <p className="section-label">此刻</p>
+            <button type="button" className="composer-expand" aria-pressed={composerExpanded}
+              onClick={() => setComposerExpanded((current) => !current)}>
+              {composerExpanded ? "恢复布局" : "放大输入区"}
+            </button>
+          </div>
           <h2 id="composer-title">有什么想记下来的？</h2>
           <textarea value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={onKeyDown}
             placeholder="不用整理，先写下来……" rows={8} autoFocus />
